@@ -7,6 +7,7 @@ from imblearn.over_sampling import SMOTENC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 import time
 
@@ -15,9 +16,22 @@ total_execution_time = 0
 start_time = time.time()
 # 1.1 Loading the Dataset
 # 1.1.1 Reloading the dataset
-master_data = pd.read_csv("00-raw-dataset/dataset.csv")
+raw_data = pd.read_csv("00-raw-dataset/dataset.csv")
+
 
 # 1.1.2 Removing duplicate rows and dropping completely empty columns
+def delete_half_rawdata(raw_data):
+    random_seed = 42
+    np.random.seed(random_seed)
+
+    mask = np.random.choice([True, False], size=len(raw_data), replace=True)
+
+    reduced_data = raw_data[mask].reset_index(drop=True)
+
+    return reduced_data
+
+
+master_data = delete_half_rawdata(raw_data)
 master_data = master_data.drop_duplicates()
 master_data = master_data.dropna(axis=1, how="all")
 
@@ -268,6 +282,347 @@ print(
 )
 start_time = time.time()
 
+# LR
+# Feature and Target Separation (for dataset_1 and dataset_2)
+target_column = "hospital_death"
+
+
+def prepare_data(dataset):
+    X = dataset.drop(columns=[target_column])
+    y = dataset[target_column]
+    return X, y
+
+
+X_train_1, y_train_1 = prepare_data(train_data_1)
+X_train_2, y_train_2 = prepare_data(train_data_2)
+X_test_1, y_test_1 = prepare_data(test_data_1)
+X_test_2, y_test_2 = prepare_data(test_data_2)
+
+# Standardize Numerical Features
+scaler = StandardScaler()
+X_train_1_scaled = scaler.fit_transform(X_train_1)
+X_train_2_scaled = scaler.fit_transform(X_train_2)
+X_test_1_scaled = scaler.transform(X_test_1)
+X_test_2_scaled = scaler.transform(X_test_2)
+
+# Logistic Regression Model
+logreg = LogisticRegression(solver="liblinear", random_state=42)
+
+# Hyperparameter grid for Grid Search
+param_grid = {
+    "C": [0.1, 1, 10],  # Regularization strength
+    "solver": ["liblinear", "lbfgs"],  # Solver types
+    "max_iter": [100, 200],  # Maximum number of iterations for convergence
+}
+
+# Initialize variables to track best model and AUC score
+best_auc = 0
+best_params = None
+
+
+# Function to perform 5-fold cross-validation manually
+def manual_cross_validation(X, y, model, n_splits=5):
+    auc_scores = []
+    fold_size = len(X) // n_splits
+    for i in range(n_splits):
+        start, end = i * fold_size, (i + 1) * fold_size
+        X_train_fold = np.concatenate([X[:start], X[end:]], axis=0)
+        y_train_fold = np.concatenate([y[:start], y[end:]], axis=0)
+        X_val_fold, y_val_fold = X[start:end], y[start:end]
+
+        model.fit(X_train_fold, y_train_fold)
+        y_pred_proba = model.predict_proba(X_val_fold)[:, 1]
+        auc_score = roc_auc_score(y_val_fold, y_pred_proba)
+        auc_scores.append(auc_score)
+
+    return np.mean(auc_scores)
+
+
+# Grid Search (Manually for each dataset)
+for C in param_grid["C"]:
+    for solver in param_grid["solver"]:
+        for max_iter in param_grid["max_iter"]:
+            # Initialize model with specific hyperparameters
+            logreg = LogisticRegression(
+                C=C, solver=solver, max_iter=max_iter, random_state=42
+            )
+
+            # Evaluate on the imbalanced dataset (train_data_1)
+            auc_score_1 = manual_cross_validation(X_train_1_scaled, y_train_1, logreg)
+
+            # Evaluate on the balanced dataset (train_data_2)
+            auc_score_2 = manual_cross_validation(X_train_2_scaled, y_train_2, logreg)
+
+            # Print the AUC scores for both datasets
+            print(
+                f"AUC (Imbalanced - dataset_1): {auc_score_1:.4f} | AUC (Balanced - dataset_2): {auc_score_2:.4f}"
+            )
+
+            # Update best model if necessary based on the AUC score on the balanced dataset
+            if auc_score_2 > best_auc:
+                best_auc = auc_score_2
+                best_params = {"C": C, "solver": solver, "max_iter": max_iter}
+
+# Print the best hyperparameters and AUC score
+print(f"\nBest Hyperparameters: {best_params}")
+print(f"Best AUC-ROC Score (Balanced Dataset): {best_auc:.4f}")
+
+# Train the best model on the entire training data (using the balanced dataset)
+best_logreg = LogisticRegression(
+    C=best_params["C"],
+    solver=best_params["solver"],
+    max_iter=best_params["max_iter"],
+    random_state=42,
+)
+best_logreg.fit(X_train_2_scaled, y_train_2)
+
+# Evaluate on the imbalanced test dataset (test_data_1)
+y_pred_proba_1 = best_logreg.predict_proba(X_test_1_scaled)[:, 1]
+auc_score_1_final = roc_auc_score(y_test_1, y_pred_proba_1)
+print(f"Final AUC-ROC Score (Test Set - Imbalanced): {auc_score_1_final:.4f}")
+
+# Evaluate on the balanced test dataset (test_data_2)
+y_pred_proba_2 = best_logreg.predict_proba(X_test_2_scaled)[:, 1]
+auc_score_2_final = roc_auc_score(y_test_2, y_pred_proba_2)
+print(f"Final AUC-ROC Score (Test Set - Balanced): {auc_score_2_final:.4f}")
+
+# Plot the AUC-ROC curve for the imbalanced dataset (test_data_1)
+fpr_1, tpr_1, thresholds_1 = roc_curve(y_test_1, y_pred_proba_1)
+plt.figure(figsize=(8, 6))
+plt.plot(fpr_1, tpr_1, color="blue", label="Logistic Regression (Imbalanced)")
+plt.plot(
+    [0, 1], [0, 1], color="gray", linestyle="--"
+)  # Random classifier (diagonal line)
+plt.title("AUC-ROC Curve (Imbalanced Dataset)")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.legend(loc="lower right")
+plt.savefig("LR data 1", format="jpg", dpi=300)
+# plt.show()
+
+# Plot the AUC-ROC curve for the balanced dataset (test_data_2)
+fpr_2, tpr_2, thresholds_2 = roc_curve(y_test_2, y_pred_proba_2)
+plt.figure(figsize=(8, 6))
+plt.plot(fpr_2, tpr_2, color="green", label="Logistic Regression (Balanced)")
+plt.plot(
+    [0, 1], [0, 1], color="gray", linestyle="--"
+)  # Random classifier (diagonal line)
+plt.title("AUC-ROC Curve (Balanced Dataset)")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.legend(loc="lower right")
+plt.savefig("LR data 2", format="jpg", dpi=300)
+# plt.show()
+execution_time = end_time - start_time
+total_execution_time += execution_time
+print(f"random forest data 2 execution time: {execution_time:.4f} second")
+print(f"total execution time: {total_execution_time:.4f} second")
+
+
+print("-----KNN-----")
+
+
+def split_data(train_data, test_data):
+    """
+    Split train and test data into features and target.
+    """
+    X_train, y_train = (
+        train_data.drop(columns=["hospital_death"]),
+        train_data["hospital_death"],
+    )
+    X_test, y_test = (
+        test_data.drop(columns=["hospital_death"]),
+        test_data["hospital_death"],
+    )
+    return X_train, y_train, X_test, y_test
+
+
+def calculate_auc(y_true, y_pred_proba):
+    """
+    Calculate AUC and return FPR, TPR, and AUC score.
+    """
+    fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
+    return auc(fpr, tpr), fpr, tpr
+
+
+def custom_cross_val_score(model, X, y, cv=10):
+    """
+    Perform manual cross-validation.
+    """
+    if isinstance(X, pd.DataFrame):
+        X = X.values
+    if isinstance(y, pd.Series):
+        y = y.values
+
+    indices = np.arange(len(y))
+    np.random.shuffle(indices)
+    X, y = X[indices], y[indices]
+
+    fold_size = len(y) // cv
+    scores = []
+
+    for i in range(cv):
+        start, end = i * fold_size, (i + 1) * fold_size
+        X_val, y_val = X[start:end], y[start:end]
+        X_train = np.concatenate([X[:start], X[end:]], axis=0)
+        y_train = np.concatenate([y[:start], y[end:]], axis=0)
+
+        model.fit(X_train, y_train)
+        y_val_pred_proba = model.predict_proba(X_val)[:, 1]
+        auc_score = roc_auc_score(y_val, y_val_pred_proba)
+        scores.append(auc_score)
+
+    return scores
+
+
+def search_best_parameter_with_results(X, y, cv=10):
+    """
+    Search for the best parameters using grid search and cross-validation.
+    """
+    n_neighbors_options = [3, 5, 10]
+    weights_options = ["uniform", "distance"]
+    metric_options = ["minkowski", "manhattan"]
+
+    results = []
+
+    print("Starting parameter search...")
+
+    for n_neighbors in n_neighbors_options:
+        for weights in weights_options:
+            for metric in metric_options:
+                try:
+                    # Define the kNN model
+                    model = KNeighborsClassifier(
+                        n_neighbors=n_neighbors, weights=weights, metric=metric
+                    )
+
+                    # Perform cross-validation
+                    auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+                    mean_auc = np.mean(auc_scores)
+
+                    print(
+                        f"Parameters: n_neighbors={n_neighbors}, weights={weights}, metric={metric}"
+                    )
+                    print(f"Cross-Validation Mean AUC: {mean_auc:.6f}")
+
+                    # Append results
+                    results.append(
+                        {
+                            "n_neighbors": n_neighbors,
+                            "weights": weights,
+                            "metric": metric,
+                            "mean_auc": mean_auc,
+                        }
+                    )
+
+                except Exception as e:
+                    print(
+                        f"Error with n_neighbors={n_neighbors}, weights={weights}, metric={metric}: {e}"
+                    )
+                    results.append(
+                        {
+                            "n_neighbors": n_neighbors,
+                            "weights": weights,
+                            "metric": metric,
+                            "mean_auc": np.nan,  # Record NaN for invalid configurations
+                        }
+                    )
+
+    results_df = pd.DataFrame(results)
+    return results_df
+
+
+def plot_results(results_df):
+    """
+    Plot parameter search results for visualization.
+    """
+    for weights in results_df["weights"].unique():
+        for metric in results_df["metric"].unique():
+            subset = results_df[
+                (results_df["weights"] == weights) & (results_df["metric"] == metric)
+            ]
+            plt.plot(
+                subset["n_neighbors"],
+                subset["mean_auc"],
+                label=f"Weights={weights}, Metric={metric}",
+            )
+
+    plt.xlabel("Number of Neighbors (n_neighbors)")
+    plt.ylabel("Mean AUC")
+    plt.title("Parameter Search Results")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+
+def testing_data(best_model, X_test, y_test):
+    """
+    Test the best model on the test set and calculate AUC.
+    """
+    y_test_pred_proba = best_model.predict_proba(X_test)[:, 1]
+    test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
+    return test_auc, fpr, tpr
+
+
+def print_roc_curve(test_auc, fpr, tpr, dataset_name):
+    """
+    Plot the ROC curve.
+    """
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {test_auc:.4f})")
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title(f"ROC Curve - {dataset_name}")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+
+if __name__ == "__main__":
+    print("Script execution started...")
+
+    datasets = [
+        {"train_data": train_data_1, "test_data": test_data_1, "name": "Dataset 1"},
+        {"train_data": train_data_2, "test_data": test_data_2, "name": "Dataset 2"},
+    ]
+
+    for dataset in datasets:
+        print(f"\nProcessing {dataset['name']}...")
+        try:
+            train_data = dataset["train_data"]
+            test_data = dataset["test_data"]
+
+            print("Data loaded successfully!")
+            print(f"Train data shape: {train_data.shape}")
+            print(f"Test data shape: {test_data.shape}")
+
+            X_train, y_train, X_test, y_test = split_data(train_data, test_data)
+
+            print("Training and testing...")
+
+            results_df = search_best_parameter_with_results(X_train, y_train)
+            best_params = results_df.loc[results_df["mean_auc"].idxmax()]
+            print(f"Best Parameters: {best_params}")
+
+            best_model = KNeighborsClassifier(
+                n_neighbors=int(best_params["n_neighbors"]),
+                weights=best_params["weights"],
+                metric=best_params["metric"],
+            )
+            best_model.fit(X_train, y_train)
+
+            test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+            print(f"Test AUC for {dataset['name']}: {test_auc:.4f}")
+            print_roc_curve(test_auc, fpr, tpr, dataset["name"])
+
+            print(f"{dataset['name']} processing completed.")
+
+        except Exception as e:
+            print(f"An error occurred while processing {dataset['name']}: {e}")
+
+    print("Script execution completed.")
+
 
 def split_data(train_data, test_data):
     X_train, y_train = (
@@ -416,7 +771,6 @@ def print_roc_curve(test_auc, fpr, tpr, file_name):
     # plt.show() # maybe I should delete this, or the code will not continue exexuting without closing the picture's window
 
 
-"""
 # random forest
 print("-----random forest-----")
 # data 01
@@ -449,139 +803,3 @@ execution_time = end_time - start_time
 total_execution_time += execution_time
 print(f"random forest data 2 execution time: {execution_time:.4f} second")
 print(f"total execution time: {total_execution_time:.4f} second")
-"""
-
-"""
-# LR
-# Feature and Target Separation (for dataset_1 and dataset_2)
-target_column = "hospital_death"
-
-
-def prepare_data(dataset):
-    X = dataset.drop(columns=[target_column])
-    y = dataset[target_column]
-    return X, y
-
-
-X_train_1, y_train_1 = prepare_data(train_data_1)
-X_train_2, y_train_2 = prepare_data(train_data_2)
-X_test_1, y_test_1 = prepare_data(test_data_1)
-X_test_2, y_test_2 = prepare_data(test_data_2)
-
-# Standardize Numerical Features
-scaler = StandardScaler()
-X_train_1_scaled = scaler.fit_transform(X_train_1)
-X_train_2_scaled = scaler.fit_transform(X_train_2)
-X_test_1_scaled = scaler.transform(X_test_1)
-X_test_2_scaled = scaler.transform(X_test_2)
-
-# Logistic Regression Model
-logreg = LogisticRegression(solver="liblinear", random_state=42)
-
-# Hyperparameter grid for Grid Search
-param_grid = {
-    "C": [0.1, 1, 10],  # Regularization strength
-    "solver": ["liblinear", "lbfgs"],  # Solver types
-    "max_iter": [100, 200],  # Maximum number of iterations for convergence
-}
-
-# Initialize variables to track best model and AUC score
-best_auc = 0
-best_params = None
-
-
-# Function to perform 5-fold cross-validation manually
-def manual_cross_validation(X, y, model, n_splits=5):
-    auc_scores = []
-    fold_size = len(X) // n_splits
-    for i in range(n_splits):
-        start, end = i * fold_size, (i + 1) * fold_size
-        X_train_fold = np.concatenate([X[:start], X[end:]], axis=0)
-        y_train_fold = np.concatenate([y[:start], y[end:]], axis=0)
-        X_val_fold, y_val_fold = X[start:end], y[start:end]
-
-        model.fit(X_train_fold, y_train_fold)
-        y_pred_proba = model.predict_proba(X_val_fold)[:, 1]
-        auc_score = roc_auc_score(y_val_fold, y_pred_proba)
-        auc_scores.append(auc_score)
-
-    return np.mean(auc_scores)
-
-
-# Grid Search (Manually for each dataset)
-for C in param_grid["C"]:
-    for solver in param_grid["solver"]:
-        for max_iter in param_grid["max_iter"]:
-            # Initialize model with specific hyperparameters
-            logreg = LogisticRegression(
-                C=C, solver=solver, max_iter=max_iter, random_state=42
-            )
-
-            # Evaluate on the imbalanced dataset (train_data_1)
-            auc_score_1 = manual_cross_validation(X_train_1_scaled, y_train_1, logreg)
-
-            # Evaluate on the balanced dataset (train_data_2)
-            auc_score_2 = manual_cross_validation(X_train_2_scaled, y_train_2, logreg)
-
-            # Print the AUC scores for both datasets
-            print(
-                f"AUC (Imbalanced - dataset_1): {auc_score_1:.4f} | AUC (Balanced - dataset_2): {auc_score_2:.4f}"
-            )
-
-            # Update best model if necessary based on the AUC score on the balanced dataset
-            if auc_score_2 > best_auc:
-                best_auc = auc_score_2
-                best_params = {"C": C, "solver": solver, "max_iter": max_iter}
-
-# Print the best hyperparameters and AUC score
-print(f"\nBest Hyperparameters: {best_params}")
-print(f"Best AUC-ROC Score (Balanced Dataset): {best_auc:.4f}")
-
-# Train the best model on the entire training data (using the balanced dataset)
-best_logreg = LogisticRegression(
-    C=best_params["C"],
-    solver=best_params["solver"],
-    max_iter=best_params["max_iter"],
-    random_state=42,
-)
-best_logreg.fit(X_train_2_scaled, y_train_2)
-
-# Evaluate on the imbalanced test dataset (test_data_1)
-y_pred_proba_1 = best_logreg.predict_proba(X_test_1_scaled)[:, 1]
-auc_score_1_final = roc_auc_score(y_test_1, y_pred_proba_1)
-print(f"Final AUC-ROC Score (Test Set - Imbalanced): {auc_score_1_final:.4f}")
-
-# Evaluate on the balanced test dataset (test_data_2)
-y_pred_proba_2 = best_logreg.predict_proba(X_test_2_scaled)[:, 1]
-auc_score_2_final = roc_auc_score(y_test_2, y_pred_proba_2)
-print(f"Final AUC-ROC Score (Test Set - Balanced): {auc_score_2_final:.4f}")
-
-# Plot the AUC-ROC curve for the imbalanced dataset (test_data_1)
-fpr_1, tpr_1, thresholds_1 = roc_curve(y_test_1, y_pred_proba_1)
-plt.figure(figsize=(8, 6))
-plt.plot(fpr_1, tpr_1, color="blue", label="Logistic Regression (Imbalanced)")
-plt.plot(
-    [0, 1], [0, 1], color="gray", linestyle="--"
-)  # Random classifier (diagonal line)
-plt.title("AUC-ROC Curve (Imbalanced Dataset)")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.legend(loc="lower right")
-plt.savefig("LR data 1", format="jpg", dpi=300)
-#plt.show()
-
-# Plot the AUC-ROC curve for the balanced dataset (test_data_2)
-fpr_2, tpr_2, thresholds_2 = roc_curve(y_test_2, y_pred_proba_2)
-plt.figure(figsize=(8, 6))
-plt.plot(fpr_2, tpr_2, color="green", label="Logistic Regression (Balanced)")
-plt.plot(
-    [0, 1], [0, 1], color="gray", linestyle="--"
-)  # Random classifier (diagonal line)
-plt.title("AUC-ROC Curve (Balanced Dataset)")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.legend(loc="lower right")
-plt.savefig("LR data 2", format="jpg", dpi=300)
-#plt.show()
-"""
-

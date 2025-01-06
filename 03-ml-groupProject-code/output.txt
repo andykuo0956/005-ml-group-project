@@ -1,0 +1,336 @@
+   encounter_id  patient_id  ...  apache_2_bodysystem  hospital_death
+0         66154       25312  ...       Cardiovascular               0
+1        119783       50777  ...            Metabolic               0
+2         79267       46918  ...       Cardiovascular               0
+3         92056       34377  ...               Trauma               0
+4         82208       49526  ...          Respiratory               0
+5        120995       50129  ...       Cardiovascular               0
+
+[6 rows x 84 columns]
+                                            Column  ...  Missing Percentage (%)
+d1_potassium_max                  d1_potassium_max  ...               10.496791
+d1_potassium_min                  d1_potassium_min  ...               10.496791
+h1_mbp_noninvasive_max      h1_mbp_noninvasive_max  ...               10.031868
+h1_mbp_noninvasive_min      h1_mbp_noninvasive_min  ...               10.031868
+apache_4a_icu_death_prob  apache_4a_icu_death_prob  ...                8.754966
+...                                            ...  ...                     ...
+d1_sysbp_min                          d1_sysbp_min  ...                0.163705
+d1_heartrate_max                  d1_heartrate_max  ...                0.144061
+d1_heartrate_min                  d1_heartrate_min  ...                0.144061
+icu_admit_source                  icu_admit_source  ...                0.124416
+gender                                      gender  ...                0.024010
+
+[74 rows x 3 columns]
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 45814 entries, 0 to 45813
+Data columns (total 84 columns):
+ #   Column                         Non-Null Count  Dtype  
+---  ------                         --------------  -----  
+ 0   encounter_id                   45814 non-null  int64  
+ 1   patient_id                     45814 non-null  int64  
+ 2   hospital_id                    45814 non-null  int64  
+ 3   age                            45814 non-null  float64
+ 4   bmi                            45814 non-null  float64
+ 5   elective_surgery               45814 non-null  int64  
+ 6   ethnicity                      45814 non-null  object 
+ 7   gender                         45814 non-null  object 
+ 8   height                         45814 non-null  float64
+ 9   icu_admit_source               45814 non-null  object 
+ 10  icu_id                         45814 non-null  int64  
+ 11  icu_stay_type                  45814 non-null  object 
+ 12  icu_type                       45814 non-null  object 
+ 13  pre_icu_los_days               45814 non-null  float64
+ 14  weight                         45814 non-null  float64
+ 15  apache_2_diagnosis             45814 non-null  float64
+ 16  apache_3j_diagnosis            45814 non-null  float64
+ 17  apache_post_operative          45814 non-null  int64  
+ 18  arf_apache                     45814 non-null  float64
+ 19  gcs_eyes_apache                45814 non-null  float64
+ 20  gcs_motor_apache               45814 non-null  float64
+ 21  gcs_unable_apache              45814 non-null  float64
+ 22  gcs_verbal_apache              45814 non-null  float64
+ 23  heart_rate_apache              45814 non-null  float64
+ 24  intubated_apache               45814 non-null  float64
+ 25  map_apache                     45814 non-null  float64
+ 26  resprate_apache                45814 non-null  float64
+ 27  temp_apache                    45814 non-null  float64
+ 28  ventilated_apache              45814 non-null  float64
+ 29  d1_diasbp_max                  45814 non-null  float64
+ 30  d1_diasbp_min                  45814 non-null  float64
+ 31  d1_diasbp_noninvasive_max      45814 non-null  float64
+ 32  d1_diasbp_noninvasive_min      45814 non-null  float64
+ 33  d1_heartrate_max               45814 non-null  float64
+ 34  d1_heartrate_min               45814 non-null  float64
+ 35  d1_mbp_max                     45814 non-null  float64
+ 36  d1_mbp_min                     45814 non-null  float64
+ 37  d1_mbp_noninvasive_max         45814 non-null  float64
+ 38  d1_mbp_noninvasive_min         45814 non-null  float64
+ 39  d1_resprate_max                45814 non-null  float64
+ 40  d1_resprate_min                45814 non-null  float64
+ 41  d1_spo2_max                    45814 non-null  float64
+ 42  d1_spo2_min                    45814 non-null  float64
+ 43  d1_sysbp_max                   45814 non-null  float64
+ 44  d1_sysbp_min                   45814 non-null  float64
+ 45  d1_sysbp_noninvasive_max       45814 non-null  float64
+ 46  d1_sysbp_noninvasive_min       45814 non-null  float64
+ 47  d1_temp_max                    45814 non-null  float64
+ 48  d1_temp_min                    45814 non-null  float64
+ 49  h1_diasbp_max                  45814 non-null  float64
+ 50  h1_diasbp_min                  45814 non-null  float64
+ 51  h1_diasbp_noninvasive_max      45814 non-null  float64
+ 52  h1_diasbp_noninvasive_min      45814 non-null  float64
+ 53  h1_heartrate_max               45814 non-null  float64
+ 54  h1_heartrate_min               45814 non-null  float64
+ 55  h1_mbp_max                     45814 non-null  float64
+ 56  h1_mbp_min                     45814 non-null  float64
+ 57  h1_mbp_noninvasive_max         45814 non-null  float64
+ 58  h1_mbp_noninvasive_min         45814 non-null  float64
+ 59  h1_resprate_max                45814 non-null  float64
+ 60  h1_resprate_min                45814 non-null  float64
+ 61  h1_spo2_max                    45814 non-null  float64
+ 62  h1_spo2_min                    45814 non-null  float64
+ 63  h1_sysbp_max                   45814 non-null  float64
+ 64  h1_sysbp_min                   45814 non-null  float64
+ 65  h1_sysbp_noninvasive_max       45814 non-null  float64
+ 66  h1_sysbp_noninvasive_min       45814 non-null  float64
+ 67  d1_glucose_max                 45814 non-null  float64
+ 68  d1_glucose_min                 45814 non-null  float64
+ 69  d1_potassium_max               45814 non-null  float64
+ 70  d1_potassium_min               45814 non-null  float64
+ 71  apache_4a_hospital_death_prob  45814 non-null  float64
+ 72  apache_4a_icu_death_prob       45814 non-null  float64
+ 73  aids                           45814 non-null  float64
+ 74  cirrhosis                      45814 non-null  float64
+ 75  diabetes_mellitus              45814 non-null  float64
+ 76  hepatic_failure                45814 non-null  float64
+ 77  immunosuppression              45814 non-null  float64
+ 78  leukemia                       45814 non-null  float64
+ 79  lymphoma                       45814 non-null  float64
+ 80  solid_tumor_with_metastasis    45814 non-null  float64
+ 81  apache_3j_bodysystem           45814 non-null  object 
+ 82  apache_2_bodysystem            45814 non-null  object 
+ 83  hospital_death                 45814 non-null  int64  
+dtypes: float64(70), int64(7), object(7)
+memory usage: 29.4+ MB
+None 0
+Master dataset class distribution (Proportion):
+hospital_death
+0    0.912036
+1    0.087964
+Name: proportion, dtype: float64
+
+ Master dataset class absolute count:
+hospital_death
+0    41784
+1     4030
+Name: count, dtype: int64
+
+sampled_data_1 class distribution:
+hospital_death
+0    0.912036
+1    0.087964
+Name: proportion, dtype: float64
+
+sampled_data_1 class absolute count:
+hospital_death
+0    20892
+1     2015
+Name: count, dtype: int64
+
+sampled_data_2 class distribution:
+hospital_death
+0    0.912036
+1    0.087964
+Name: proportion, dtype: float64
+
+sampled_data_2 class absolute count:
+hospital_death
+0    20892
+1     2015
+Name: count, dtype: int64
+
+Class distribution for derived_data_1 (Minority class ratio: 10%):
+hospital_death
+0    0.900013
+1    0.099987
+Name: proportion, dtype: float64
+
+Class absolute count for derived_data_1:
+hospital_death
+0    20892
+1     2321
+Name: count, dtype: int64
+
+Class distribution for derived_data_2 (Minority class ratio: 50%):
+hospital_death
+1    0.5
+0    0.5
+Name: proportion, dtype: float64
+
+Class absolute count for derived_data_2:
+hospital_death
+1    20892
+0    20892
+Name: count, dtype: int64
+
+Class distribution for train_data_1:
+hospital_death
+0    0.900049
+1    0.099951
+Name: proportion, dtype: float64
+
+Class absolute count for train_data_1:
+hospital_death
+0    14624
+1     1624
+Name: count, dtype: int64
+
+Class distribution for test_data_1:
+hospital_death
+0    0.899928
+1    0.100072
+Name: proportion, dtype: float64
+
+Class absolute count for test_data_1:
+hospital_death
+0    6268
+1     697
+Name: count, dtype: int64
+
+Class distribution for train_data_2:
+hospital_death
+0    0.5
+1    0.5
+Name: proportion, dtype: float64
+
+Class absolute count for train_data_2:
+hospital_death
+0    14624
+1    14624
+Name: count, dtype: int64
+
+Class distribution for test_data_2:
+hospital_death
+1    0.5
+0    0.5
+Name: proportion, dtype: float64
+
+Class absolute count for test_data_2:
+hospital_death
+1    6268
+0    6268
+Name: count, dtype: int64
+data processing execution time: 7.5994 second
+total execution time: 7.5994 second
+------------------------------------------------- 2 model -------------------------------------------------
+AUC (Imbalanced - dataset_1): 0.8700 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8700 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8698 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8698 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8689 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8689 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8688 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8688 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8686 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8686 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8684 | AUC (Balanced - dataset_2): 0.9053
+AUC (Imbalanced - dataset_1): 0.8684 | AUC (Balanced - dataset_2): 0.9053
+
+Best Hyperparameters: {'C': 1, 'solver': 'liblinear', 'max_iter': 100}
+Best AUC-ROC Score (Balanced Dataset): 0.9053
+Final AUC-ROC Score (Test Set - Imbalanced): 0.8150
+Final AUC-ROC Score (Test Set - Balanced): 0.9070
+random forest data 2 execution time: -0.0000 second
+total execution time: 7.5994 second
+-----KNN-----
+Script execution started...
+
+Processing Dataset 1...
+Data loaded successfully!
+Train data shape: (16248, 95)
+Test data shape: (6965, 95)
+Training and testing...
+Starting parameter search...
+Parameters: n_neighbors=3, weights=uniform, metric=minkowski
+Cross-Validation Mean AUC: 0.687546
+Parameters: n_neighbors=3, weights=uniform, metric=manhattan
+Cross-Validation Mean AUC: 0.690965
+Parameters: n_neighbors=3, weights=distance, metric=minkowski
+Cross-Validation Mean AUC: 0.699832
+Parameters: n_neighbors=3, weights=distance, metric=manhattan
+Cross-Validation Mean AUC: 0.697161
+Parameters: n_neighbors=5, weights=uniform, metric=minkowski
+Cross-Validation Mean AUC: 0.715189
+Parameters: n_neighbors=5, weights=uniform, metric=manhattan
+Cross-Validation Mean AUC: 0.706742
+Parameters: n_neighbors=5, weights=distance, metric=minkowski
+Cross-Validation Mean AUC: 0.726768
+Parameters: n_neighbors=5, weights=distance, metric=manhattan
+Cross-Validation Mean AUC: 0.722404
+Parameters: n_neighbors=10, weights=uniform, metric=minkowski
+Cross-Validation Mean AUC: 0.740019
+Parameters: n_neighbors=10, weights=uniform, metric=manhattan
+Cross-Validation Mean AUC: 0.743728
+Parameters: n_neighbors=10, weights=distance, metric=minkowski
+Cross-Validation Mean AUC: 0.756319
+Parameters: n_neighbors=10, weights=distance, metric=manhattan
+Cross-Validation Mean AUC: 0.761358
+Best Parameters: n_neighbors           10
+weights         distance
+metric         manhattan
+mean_auc        0.761358
+Name: 11, dtype: object
+Test AUC for Dataset 1: 0.7642
+Dataset 1 processing completed.
+
+Processing Dataset 2...
+Data loaded successfully!
+Train data shape: (29248, 95)
+Test data shape: (12536, 95)
+Training and testing...
+Starting parameter search...
+Parameters: n_neighbors=3, weights=uniform, metric=minkowski
+Cross-Validation Mean AUC: 0.941406
+Parameters: n_neighbors=3, weights=uniform, metric=manhattan
+Cross-Validation Mean AUC: 0.945676
+Parameters: n_neighbors=3, weights=distance, metric=minkowski
+Cross-Validation Mean AUC: 0.942394
+Parameters: n_neighbors=3, weights=distance, metric=manhattan
+Cross-Validation Mean AUC: 0.945900
+Parameters: n_neighbors=5, weights=uniform, metric=minkowski
+Cross-Validation Mean AUC: 0.953663
+Parameters: n_neighbors=5, weights=uniform, metric=manhattan
+Cross-Validation Mean AUC: 0.959163
+Parameters: n_neighbors=5, weights=distance, metric=minkowski
+Cross-Validation Mean AUC: 0.957451
+Parameters: n_neighbors=5, weights=distance, metric=manhattan
+Cross-Validation Mean AUC: 0.962295
+Parameters: n_neighbors=10, weights=uniform, metric=minkowski
+Cross-Validation Mean AUC: 0.949212
+Parameters: n_neighbors=10, weights=uniform, metric=manhattan
+Cross-Validation Mean AUC: 0.957529
+Parameters: n_neighbors=10, weights=distance, metric=minkowski
+Cross-Validation Mean AUC: 0.968871
+Parameters: n_neighbors=10, weights=distance, metric=manhattan
+Cross-Validation Mean AUC: 0.973534
+Best Parameters: n_neighbors           10
+weights         distance
+metric         manhattan
+mean_auc        0.973534
+Name: 11, dtype: object
+Test AUC for Dataset 2: 0.9729
+Dataset 2 processing completed.
+Script execution completed.
+-----random forest-----
+-----random forest - data 01-----
+Best Parameters: {'n_estimators': 200, 'max_depth': 15}
+Best Cross-Validation AUC: 0.8886
+Test AUC: 0.8845
+random forest data 1 execution time: 526.2842 second
+total execution time: 533.8836 second
+-----random forest - data 02-----
+Best Parameters: {'n_estimators': 200, 'max_depth': 20}
+Best Cross-Validation AUC: 0.9883
+Test AUC: 0.9902
+random forest data 2 execution time: 242.7398 second
+total execution time: 776.6234 second
