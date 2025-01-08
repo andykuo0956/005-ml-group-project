@@ -529,7 +529,8 @@ def search_best_parameter_with_results(X, y, cv=10):
     results_df = pd.DataFrame(results)
     return results_df
 
-
+# random forest
+print("-----random forest-----")
 def plot_results(results_df):
     """
     Plot parameter search results for visualization.
@@ -767,10 +768,6 @@ def print_roc_curve(test_auc, fpr, tpr, file_name):
     plt.savefig(file_name, dpi=300)
 
     # plt.show() # maybe I should delete this, or the code will not continue exexuting without closing the picture's window
-
-
-# random forest
-print("-----random forest-----")
 # data 01
 print("-----random forest - data 01-----")
 X_train, y_train, X_test, y_test = split_data(train_data_1, test_data_1)
