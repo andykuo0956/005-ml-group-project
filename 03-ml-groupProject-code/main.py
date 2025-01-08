@@ -16,22 +16,10 @@ total_execution_time = 0
 start_time = time.time()
 # 1.1 Loading the Dataset
 # 1.1.1 Reloading the dataset
-raw_data = pd.read_csv("00-raw-dataset/dataset.csv")
+master_data = pd.read_csv("00-raw-dataset/dataset.csv")
 
 
 # 1.1.2 Removing duplicate rows and dropping completely empty columns
-def delete_half_rawdata(raw_data):
-    random_seed = 42
-    np.random.seed(random_seed)
-
-    mask = np.random.choice([True, False], size=len(raw_data), replace=True)
-
-    reduced_data = raw_data[mask].reset_index(drop=True)
-
-    return reduced_data
-
-
-master_data = delete_half_rawdata(raw_data)
 master_data = master_data.drop_duplicates()
 master_data = master_data.dropna(axis=1, how="all")
 
@@ -93,7 +81,8 @@ print("\n Master dataset class absolute count:")
 print(master_class_count)
 
 # Equation to set number of samples in each derived dataset
-num_samples = len(master_data) // 2
+# derived in to 6 parts because the scale of the original dataset is too large
+num_samples = len(master_data) // 6
 
 # Group data by target class
 grouped = master_data.groupby(target_column)
@@ -102,6 +91,7 @@ grouped = master_data.groupby(target_column)
 sampled_datasets = {
     "sampled_data_1": pd.DataFrame(),
     "sampled_data_2": pd.DataFrame(),
+    "sampled_data_3": pd.DataFrame(),
 }
 
 # Create 2 sub-sampled datasets
@@ -125,6 +115,7 @@ for i, dataset_name in enumerate(sampled_datasets.keys(), start=1):
 # Assign variables explicitly for easier access later on
 sampled_data_1 = sampled_datasets["sampled_data_1"]
 sampled_data_2 = sampled_datasets["sampled_data_2"]
+sampled_data_3 = sampled_datasets["sampled_data_3"]
 
 # Print summaries of each dataset to verify proportion of classes and absolute count of data values
 for name, data in sampled_datasets.items():
@@ -135,13 +126,16 @@ for name, data in sampled_datasets.items():
 
 # 2.2 Create class-imbalanced derived dataset using SMOTE-NC (Nominal Continuous)
 # Desired rations for the minority class
-desired_minority_class_ratios = [0.10, 0.50]
+desired_minority_class_ratios = [0.10, 0.50, 0.30]
 
 # Create empty dictionary for derived datasets
 derived_datasets = {}
 
 for i, (sampled_data, desired_minority_class_ratio) in enumerate(
-    zip([sampled_data_1, sampled_data_2], desired_minority_class_ratios), start=1
+    zip(
+        [sampled_data_1, sampled_data_2, sampled_data_3], desired_minority_class_ratios
+    ),
+    start=1,
 ):
     # Step 1: identify categorical columns for sampled datasets
     categorical_columns = sampled_data.select_dtypes(
@@ -205,6 +199,7 @@ for i, (sampled_data, desired_minority_class_ratio) in enumerate(
 # Step 9: assign variables for derived datasets
 derived_data_1 = derived_datasets["derived_data_1"]
 derived_data_2 = derived_datasets["derived_data_2"]
+derived_data_3 = derived_datasets["derived_data_3"]
 
 # 2.3 Create Train-Validation-Test split for derived datasets
 # Create dictionaries for the training and test splits
@@ -246,7 +241,9 @@ def stratified_split(data, target_column, train_ratio=0.7, test_ratio=0.3):
     # Split each derived dataset with stratified split function
 
 
-for i, derived_data in enumerate([derived_data_1, derived_data_2], start=1):
+for i, derived_data in enumerate(
+    [derived_data_1, derived_data_2, derived_data_3], start=1
+):
     train_set, test_set = stratified_split(derived_data, target_column)
 
     # Store the splits in dictionaries
@@ -267,6 +264,7 @@ for i, derived_data in enumerate([derived_data_1, derived_data_2], start=1):
     # Assign variables for derived datasets
 train_data_1, test_data_1 = train_sets["train_data_1"], test_sets["test_data_1"]
 train_data_2, test_data_2 = train_sets["train_data_2"], test_sets["test_data_2"]
+train_data_3, test_data_3 = train_sets["train_data_3"], test_sets["test_data_3"]
 
 end_time = time.time()
 
@@ -766,7 +764,7 @@ def print_roc_curve(test_auc, fpr, tpr, file_name):
     plt.grid()
 
     # Save the figure as a JPG file
-    plt.savefig(file_name, format="jpg", dpi=300)
+    plt.savefig(file_name, dpi=300)
 
     # plt.show() # maybe I should delete this, or the code will not continue exexuting without closing the picture's window
 
