@@ -1,3 +1,4 @@
+# input library
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,260 +10,460 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 import time
-import itertools
-from typing import Tuple, List, Dict, Any
 
-class DataProcessor:
-    def __init__(self, file_path: str):
-        self.file_path = file_path
-        self.data = None
-        self.execution_time = 0
-        
-    def process_data(self) -> pd.DataFrame:
-        start_time = time.time()
-        
-        print("Loading and cleaning dataset...")
-        self.data = pd.read_csv(self.file_path)
-        self.data = self.data.drop_duplicates()
-        self.data = self.data.dropna(axis=1, how="all")
-        print("Initial data shape:", self.data.shape)
-        print("\nFirst 6 rows:")
-        print(self.data.head(6))
-        
-        print("\nAnalyzing missing values...")
-        missing_values = self.data.isnull().sum()
-        missing_percentage = (missing_values / len(self.data)) * 100
-        missing_report = pd.DataFrame({
-            'Column': self.data.columns,
-            'Missing Values': missing_values,
-            'Missing Percentage (%)': missing_percentage
-        }).sort_values(by='Missing Percentage (%)', ascending=False)
-        print(missing_report[missing_report['Missing Values'] > 0])
-        
-        print("\nHandling missing values...")
-        numeric_cols = self.data.select_dtypes(include=['float64', 'int64']).columns
-        categorical_cols = self.data.select_dtypes(include=['object']).columns
-        
-        self.data[numeric_cols] = self.data[numeric_cols].apply(lambda col: col.fillna(col.mean()))
-        self.data[categorical_cols] = self.data[categorical_cols].apply(lambda col: col.fillna(col.mode()[0]))
-        
-        print("\nRemoving non-relevant features...")
-        non_related_cols = ['encounter_id', 'patient_id', 'hospital_id', 'icu_id']
-        self.data = self.data.drop(columns=non_related_cols, errors='ignore')
-        
-        self.execution_time = time.time() - start_time
-        print(f"\nData processing execution time: {self.execution_time:.4f} seconds")
-        
-        return self.data
+# 1 data processing
+total_execution_time = 0
+start_time = time.time()
+# 1.1 Loading the Dataset
+# 1.1.1 Reloading the dataset
+master_data = pd.read_csv("00-raw-dataset/dataset.csv")
 
-class DatasetSplitter:
-    @staticmethod
-    def create_stratified_samples(data: pd.DataFrame, target_column: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        num_samples = len(data) // 2
-        class_distribution = data[target_column].value_counts(normalize=True)
-        
-        sampled_datasets = {}
-        for i in range(2):
-            sampled_data = pd.DataFrame()
-            for class_label, group in data.groupby(target_column):
-                samples = int(class_distribution[class_label] * num_samples)
-                sampled_class_data = group.sample(n=samples, random_state=np.random.randint(1000))
-                sampled_data = pd.concat([sampled_data, sampled_class_data])
-            
-            sampled_data = sampled_data.sample(frac=1, random_state=42).reset_index(drop=True)
-            sampled_datasets[f"sampled_data_{i+1}"] = sampled_data
-            
-            print(f"\nClass distribution for sampled_data_{i+1}:")
-            print(sampled_data[target_column].value_counts(normalize=True))
-            print(f"Absolute count for sampled_data_{i+1}:")
-            print(sampled_data[target_column].value_counts())
-            
-        return sampled_datasets["sampled_data_1"], sampled_datasets["sampled_data_2"]
 
-class SMOTEHandler:
-    @staticmethod
-    def apply_smote(data: pd.DataFrame, target_column: str, minority_ratio: float) -> pd.DataFrame:
-        categorical_cols = data.select_dtypes(include=["object"]).columns.tolist()
-        
-        encoder = ce.BinaryEncoder(cols=categorical_cols)
-        encoded_data = encoder.fit_transform(data)
-        
-        X = encoded_data.drop(columns=[target_column])
-        y = encoded_data[target_column]
-        
-        majority_count = y.value_counts().get(0, 0)
-        sampling_strategy = int(majority_count * (minority_ratio / (1 - minority_ratio)))
-        
-        categorical_indices = [X.columns.get_loc(col) for col in X.columns 
-                             if any(col.startswith(cat) for cat in categorical_cols)]
-        
-        smote = SMOTENC(categorical_features=categorical_indices,
-                       sampling_strategy={1: sampling_strategy},
-                       random_state=42)
-        
-        X_resampled, y_resampled = smote.fit_resample(X, y)
-        result = pd.concat([pd.DataFrame(X_resampled, columns=X.columns),
-                          pd.DataFrame(y_resampled, columns=[target_column])], axis=1)
-        
-        print(f"\nSMOTE results (target ratio: {minority_ratio}):")
-        print(result[target_column].value_counts(normalize=True))
-        return result
+# 1.1.2 Removing duplicate rows and dropping completely empty columns
+master_data = master_data.drop_duplicates()
+master_data = master_data.dropna(axis=1, how="all")
 
-class CustomKFold:
-    @staticmethod
-    def split(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> List[Tuple]:
-        indices = np.arange(len(y))
-        np.random.shuffle(indices)
-        fold_size = len(indices) // n_splits
-        splits = []
-        
-        for i in range(n_splits):
-            start_idx = i * fold_size
-            end_idx = start_idx + fold_size if i < n_splits - 1 else len(indices)
-            val_indices = indices[start_idx:end_idx]
-            train_indices = np.concatenate([indices[:start_idx], indices[end_idx:]])
-            splits.append((train_indices, val_indices))
-            
-        return splits
+# 1.1.3 Checking the updated structure
+print(master_data.head(6))
 
-class ModelTrainer:
-    def __init__(self, model_type: str):
-        self.model_type = model_type
-        self.execution_time = 0
-        
-    def custom_cross_val_score(self, model, X: np.ndarray, y: np.ndarray, cv: int = 5) -> List[float]:
-        kf = CustomKFold()
-        scores = []
-        
-        for train_idx, val_idx in kf.split(X, y, cv):
-            X_train, X_val = X[train_idx], X[val_idx]
-            y_train, y_val = y[train_idx], y[val_idx]
-            
-            model.fit(X_train, y_train)
-            y_pred_proba = model.predict_proba(X_val)[:, 1]
-            scores.append(roc_auc_score(y_val, y_pred_proba))
-            
-        return scores
-    
-    def grid_search(self, X: np.ndarray, y: np.ndarray) -> Tuple[Any, Dict]:
-        start_time = time.time()
-        
-        if self.model_type == "logistic":
-            param_grid = {
-                'C': [0.1, 1, 10],
-                'solver': ['liblinear', 'lbfgs'],
-                'max_iter': [100, 200]
-            }
-            base_model = LogisticRegression
-            
-        elif self.model_type == "random_forest":
-            param_grid = {
-                'n_estimators': [100, 150, 200],
-                'max_depth': [10, 15, 20]
-            }
-            base_model = RandomForestClassifier
-            
-        elif self.model_type == "knn":
-            param_grid = {
-                'n_neighbors': [3, 5, 10],
-                'weights': ['uniform', 'distance'],
-                'metric': ['minkowski', 'manhattan']
-            }
-            base_model = KNeighborsClassifier
-        
-        best_score = 0
-        best_params = None
-        best_model = None
-        
-        print(f"\nStarting grid search for {self.model_type}...")
-        for params in self._generate_param_combinations(param_grid):
-            model = base_model(**params, random_state=42 if self.model_type != "knn" else None)
-            scores = self.custom_cross_val_score(model, X, y)
-            mean_score = np.mean(scores)
-            
-            print(f"Parameters: {params}")
-            print(f"Mean CV Score: {mean_score:.6f}")
-            
-            if mean_score > best_score:
-                best_score = mean_score
-                best_params = params
-                best_model = model
-        
-        self.execution_time = time.time() - start_time
-        print(f"\n{self.model_type} grid search execution time: {self.execution_time:.4f} seconds")
-        
-        return best_model, best_params
-    
-    def _generate_param_combinations(self, param_grid: Dict) -> List[Dict]:
-        keys = list(param_grid.keys())
-        values = list(param_grid.values())
-        combinations = []
-        
-        for items in itertools.product(*values):
-            combinations.append(dict(zip(keys, items)))
-        
-        return combinations
+# 1.2 Missing Value Analysis
+# 1.2.1 Calculate Missing Values and their Percentages
+missing_values = master_data.isnull().sum()
+missing_percentage = (missing_values / len(master_data)) * 100
 
-class Visualizer:
-    @staticmethod
-    def plot_roc_curve(fpr: np.ndarray, tpr: np.ndarray, auc_score: float, 
-                       title: str, filename: str) -> None:
-        plt.figure(figsize=(8, 6))
-        plt.plot(fpr, tpr, label=f'ROC Curve (AUC = {auc_score:.4f})')
-        plt.plot([0, 1], [0, 1], 'k--')
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title(title)
-        plt.legend()
-        plt.savefig(filename, dpi=300)
-        plt.close()
+# Create a missing data report
+missing_data_report = pd.DataFrame(
+    {
+        "Column": master_data.columns,
+        "Missing Values": missing_values,
+        "Missing Percentage (%)": missing_percentage,
+    }
+).sort_values(by="Missing Percentage (%)", ascending=False)
 
-def main():
-    total_time = 0
-    
-    # Data processing
-    processor = DataProcessor("00-raw-dataset/dataset.csv")
-    data = processor.process_data()
-    total_time += processor.execution_time
-    
-    # Dataset splitting
-    splitter = DatasetSplitter()
-    sampled_data_1, sampled_data_2 = splitter.create_stratified_samples(data, "hospital_death")
-    
-    # SMOTE handling
-    smote_handler = SMOTEHandler()
-    balanced_data_1 = smote_handler.apply_smote(sampled_data_1, "hospital_death", 0.10)
-    balanced_data_2 = smote_handler.apply_smote(sampled_data_2, "hospital_death", 0.50)
-    
-    # Model training and evaluation
-    for model_type in ["logistic", "random_forest", "knn"]:
-        trainer = ModelTrainer(model_type)
-        
-        for dataset_num, dataset in enumerate([balanced_data_1, balanced_data_2], 1):
-            print(f"\nProcessing {model_type} on dataset {dataset_num}")
-            
-            X = dataset.drop(columns=["hospital_death"]).values
-            y = dataset["hospital_death"].values
-            
-            best_model, best_params = trainer.grid_search(X, y)
-            print(f"Best parameters: {best_params}")
-            
-            # Final evaluation
-            y_pred_proba = best_model.predict_proba(X)[:, 1]
-            fpr, tpr, _ = roc_curve(y, y_pred_proba)
-            auc_score = auc(fpr, tpr)
-            
-            print(f"Final AUC score: {auc_score:.4f}")
-            
-            Visualizer.plot_roc_curve(
-                fpr, tpr, auc_score,
-                f"{model_type.title()} ROC Curve - Dataset {dataset_num}",
-                f"{model_type}_data_{dataset_num}.jpg"
+# Display columns with missing values
+print(missing_data_report[missing_data_report["Missing Values"] > 0])
+
+# 1.2.2 Handling Missing Values
+# Strategy 1: Impute missing values for numeric columns with mean
+numeric_columns = master_data.select_dtypes(include=["float64", "int64"]).columns
+master_data[numeric_columns] = master_data[numeric_columns].apply(
+    lambda col: col.fillna(col.mean())
+)
+
+# Strategy 2: Impute missing values for categorical columns with mode
+categorical_columns = master_data.select_dtypes(include=["object"]).columns
+master_data[categorical_columns] = master_data[categorical_columns].apply(
+    lambda col: col.fillna(col.mode()[0])
+)
+
+# Check for remaining missing values
+remaining_missing_values = master_data.isnull().sum().sum()
+
+# Display the updated dataset structure and check if missing values remain
+print(master_data.info(), remaining_missing_values)
+
+# 1.3 Identifying and removing non-relevant features
+# Remove non-related columns based on domain knowledge
+non_related_columns = ["encounter_id", "patient_id", "hospital_id", "icu_id"]
+master_data = master_data.drop(columns=non_related_columns, errors="ignore")
+
+# 2.1 Create two sub-sampled datasets
+# 2.1.1 Use stratified sampling to keep intial class imbalnce of master dataset
+# Identify column with target values for classifcation
+target_column = "hospital_death"
+
+# Determine distribution and absolute count for each class in the master dataset
+master_class_distribution = master_data[target_column].value_counts(normalize=True)
+master_class_count = master_data[target_column].value_counts()
+print("Master dataset class distribution (Proportion):")
+print(master_class_distribution)
+print("\n Master dataset class absolute count:")
+print(master_class_count)
+
+# Equation to set number of samples in each derived dataset
+# derived in to 6 parts because the scale of the original dataset is too large
+num_samples = len(master_data) // 6
+
+# Group data by target class
+grouped = master_data.groupby(target_column)
+
+# Initialise a dictionary to store sampled datasets
+sampled_datasets = {
+    "sampled_data_1": pd.DataFrame(),
+    "sampled_data_2": pd.DataFrame(),
+    "sampled_data_3": pd.DataFrame(),
+}
+
+# Create 2 sub-sampled datasets
+for i, dataset_name in enumerate(sampled_datasets.keys(), start=1):
+    sampled_data = pd.DataFrame()
+
+    # Sample data from each class group
+    # random_state is set to simulate semi-random behaviour for reproducability of experiments
+    for class_label, group in grouped:
+        samples_to_take = int(master_class_distribution[class_label] * num_samples)
+        sampled_class_data = group.sample(
+            n=samples_to_take, random_state=np.random.randint(1000)
+        )
+        sampled_data = pd.concat([sampled_data, sampled_class_data])
+
+    # Shuffle data and reset index to reduce data order bias after concatination
+    sampled_datasets[dataset_name] = sampled_data.sample(
+        frac=1, random_state=np.random.randint(1000)
+    ).reset_index(drop=True)
+
+# Assign variables explicitly for easier access later on
+sampled_data_1 = sampled_datasets["sampled_data_1"]
+sampled_data_2 = sampled_datasets["sampled_data_2"]
+sampled_data_3 = sampled_datasets["sampled_data_3"]
+
+# Print summaries of each dataset to verify proportion of classes and absolute count of data values
+for name, data in sampled_datasets.items():
+    print(f"\n{name} class distribution:")
+    print(data[target_column].value_counts(normalize=True))
+    print(f"\n{name} class absolute count:")
+    print(data[target_column].value_counts())
+
+# 2.2 Create class-imbalanced derived dataset using SMOTE-NC (Nominal Continuous)
+# Desired rations for the minority class
+desired_minority_class_ratios = [0.10, 0.50, 0.30]
+
+# Create empty dictionary for derived datasets
+derived_datasets = {}
+
+for i, (sampled_data, desired_minority_class_ratio) in enumerate(
+    zip(
+        [sampled_data_1, sampled_data_2, sampled_data_3], desired_minority_class_ratios
+    ),
+    start=1,
+):
+    # Step 1: identify categorical columns for sampled datasets
+    categorical_columns = sampled_data.select_dtypes(
+        include=["object"]
+    ).columns.tolist()
+
+    # Step 2: apply binary coding for use in SMOTE-NC
+    binary_encoder = ce.BinaryEncoder(cols=categorical_columns)
+    encoded_data = binary_encoder.fit_transform(sampled_data)
+
+    # Step 3: separate features and target
+    X = encoded_data.drop(columns=[target_column])
+    y = encoded_data[target_column]
+
+    # Step 4: define categorical indices after encoding
+    binary_categorical_indices = [
+        X.columns.get_loc(col)
+        for col in X.columns
+        if any(col.startswith(cat) for cat in categorical_columns)
+    ]
+
+    # Step 5: define correct sampling strategy for SMOTE-NC to match the desired class ratio
+    minority_class_count = y.value_counts().get(1, 0)
+    majority_class_count = y.value_counts().get(0, 0)
+    correct_sampling_strategy = int(
+        majority_class_count
+        * (desired_minority_class_ratio / (1 - desired_minority_class_ratio))
+    )
+
+    # Step 6: apply SMOTE-NC with defined sampling strategy
+    smote_nc = SMOTENC(
+        categorical_features=binary_categorical_indices,
+        sampling_strategy={1: correct_sampling_strategy},
+        random_state=42,
+    )
+    X_resampled, y_resampled = smote_nc.fit_resample(X, y)
+
+    # Step 7: Combine resampled data to create derived datasets
+    derived_data = pd.concat(
+        [
+            pd.DataFrame(X_resampled, columns=X.columns),
+            pd.DataFrame(y_resampled, columns=[target_column]),
+        ],
+        axis=1,
+    )
+
+    # Shuffle data and reset index to reduce data order bias after concatination
+    derived_data = derived_data.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    # Step 8: store the derived datasets
+    derived_datasets[f"derived_data_{i}"] = derived_data
+
+    # Print class distribution and absolute counts for verification
+    print(
+        f"\nClass distribution for derived_data_{i} (Minority class ratio: {int(desired_minority_class_ratio * 100)}%):"
+    )
+    print(derived_data[target_column].value_counts(normalize=True))
+    print(f"\nClass absolute count for derived_data_{i}:")
+    print(derived_data[target_column].value_counts())
+
+# Step 9: assign variables for derived datasets
+derived_data_1 = derived_datasets["derived_data_1"]
+derived_data_2 = derived_datasets["derived_data_2"]
+derived_data_3 = derived_datasets["derived_data_3"]
+
+# 2.3 Create Train-Validation-Test split for derived datasets
+# Create dictionaries for the training and test splits
+train_sets, test_sets = {}, {}
+
+
+# Function to stratify split on each derived dataset
+def stratified_split(data, target_column, train_ratio=0.7, test_ratio=0.3):
+    """
+    Splits a dataset into training and test sets while maintaining the same
+    class distribution as the original dataset using stratified sampling.
+
+    Parameters:
+    - data (DataFrame): The dataset to be split.
+    - target_column (str): The name of the target column used for stratification.
+    - train_ratio (float): Proportion of data to include in the Train set (set to 0.7).
+    - test_ratio (float): Proportion of data to include in the Test set (set to 0.3).
+
+    Returns:
+    - train_data (DataFrame): stratified training set.
+    - test_data (DataFrame): stratified test set.
+    """
+    train_data = pd.DataFrame()
+    test_data = pd.DataFrame()
+
+    # Group the data by class and split by class, ensuring no data points are shared between the splits
+    for class_label, group in data.groupby(target_column):
+        group = group.sample(frac=1, random_state=42).reset_index(drop=True)
+        train_size = int(train_ratio * len(group))
+        train_data = pd.concat([train_data, group.iloc[:train_size]])
+        test_data = pd.concat([test_data, group.iloc[train_size:]])
+
+    # Shuffle each set after stratified sampling to reduce data order bias after concatination
+    return (
+        train_data.sample(frac=1, random_state=42).reset_index(drop=True),
+        test_data.sample(frac=1, random_state=42).reset_index(drop=True),
+    )
+
+    # Split each derived dataset with stratified split function
+
+
+for i, derived_data in enumerate(
+    [derived_data_1, derived_data_2, derived_data_3], start=1
+):
+    train_set, test_set = stratified_split(derived_data, target_column)
+
+    # Store the splits in dictionaries
+    train_sets[f"train_data_{i}"] = train_set
+    test_sets[f"test_data_{i}"] = test_set
+
+    # Print class distribution and absolute counts for verification
+    print(f"\nClass distribution for train_data_{i}:")
+    print(train_set[target_column].value_counts(normalize=True))
+    print(f"\nClass absolute count for train_data_{i}:")
+    print(train_set[target_column].value_counts())
+
+    print(f"\nClass distribution for test_data_{i}:")
+    print(test_set[target_column].value_counts(normalize=True))
+    print(f"\nClass absolute count for test_data_{i}:")
+    print(test_set[target_column].value_counts())
+
+    # Assign variables for derived datasets
+train_data_1, test_data_1 = train_sets["train_data_1"], test_sets["test_data_1"]
+train_data_2, test_data_2 = train_sets["train_data_2"], test_sets["test_data_2"]
+train_data_3, test_data_3 = train_sets["train_data_3"], test_sets["test_data_3"]
+
+end_time = time.time()
+
+print(
+    "---------------------------------------------------model---------------------------------------------------"
+)
+
+
+# Function to split data into features and target
+def split_data(train_data, test_data):
+    X_train, y_train = (
+        train_data.drop(columns=["hospital_death"]),
+        train_data["hospital_death"],
+    )
+    X_test, y_test = (
+        test_data.drop(columns=["hospital_death"]),
+        test_data["hospital_death"],
+    )
+    return X_train, y_train, X_test, y_test
+
+
+# Function to calculate AUC and ROC curve
+def calculate_auc(y_true, y_pred_proba):
+    fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
+    return auc(fpr, tpr), fpr, tpr
+
+
+# Custom cross-validation function to calculate AUC scores
+def custom_cross_val_score(model, X, y, cv=5, seed=42):
+    if isinstance(X, pd.DataFrame):
+        X = X.values
+    if isinstance(y, pd.Series):
+        y = y.values
+
+    # Set the random seed for reproducibility
+    np.random.seed(seed)
+
+    # Shuffle the data
+    indices = np.arange(len(y))
+    np.random.shuffle(indices)
+    X, y = X[indices], y[indices]
+
+    # Split data into folds
+    fold_size = len(y) // cv
+    scores = []
+
+    for i in range(cv):
+        start, end = i * fold_size, (i + 1) * fold_size
+        X_val, y_val = X[start:end], y[start:end]
+        X_train = np.concatenate([X[:start], X[end:]], axis=0)
+        y_train = np.concatenate([y[:start], y[end:]], axis=0)
+
+        # Train model and predict probabilities
+        model.fit(X_train, y_train)
+        y_val_pred_proba = model.predict_proba(X_val)[:, 1]
+
+        # Calculate AUC
+        auc_score = roc_auc_score(y_val, y_val_pred_proba)
+        scores.append(auc_score)
+
+    return scores
+
+
+# Grid search for the best parameters
+def search_best_parameter(X, y, cv=5):
+    n_estimators_range = [100, 150, 200]
+    max_depth_range = [10, 15, 20]
+
+    best_auc = 0
+    best_params = None
+    best_model = None
+    param_results = []
+
+    for n_estimators in n_estimators_range:
+        for max_depth in max_depth_range:
+            model = RandomForestClassifier(
+                n_estimators=n_estimators, max_depth=max_depth, random_state=42
             )
-            
-            total_time += trainer.execution_time
-    
-    print(f"\nTotal execution time: {total_time:.4f} seconds")
+            auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+            mean_auc = np.mean(auc_scores)
 
-if __name__ == "__main__":
-    main()
+            # Record the parameters and AUC
+            param_results.append(
+                {
+                    "n_estimators": n_estimators,
+                    "max_depth": max_depth,
+                    "mean_auc": mean_auc,
+                }
+            )
+
+            if mean_auc > best_auc:
+                best_auc = mean_auc
+                best_params = {"n_estimators": n_estimators, "max_depth": max_depth}
+                best_model = model
+
+    best_model.fit(X, y)
+    print(f"Best Parameters: {best_params}")
+    print(f"Best Cross-Validation AUC: {best_auc:.4f}")
+
+    return best_model, param_results
+
+
+# Print grid search results as a table
+def print_grid_search_results(param_results):
+    df = pd.DataFrame(param_results)
+    print("\nGrid Search Results:")
+    print(df.sort_values(by="mean_auc", ascending=False).to_string(index=False))
+    return df
+
+
+# Test the model on the test dataset
+def testing_data(best_model, X_test, y_test):
+    y_test_pred_proba = best_model.predict_proba(X_test)[:, 1]
+    test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
+    print(f"Test AUC: {test_auc:.4f}")
+    return test_auc, fpr, tpr
+
+
+# Plot and save the ROC curve
+def print_roc_curve(test_auc, fpr, tpr, file_name):
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {test_auc:.4f})")
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC Curve")
+    plt.legend()
+    plt.grid()
+    plt.savefig(file_name, dpi=300)
+
+
+# Plot combined ROC curves for multiple models
+def plot_combined_roc_curve(results, title_name, file_name):
+    plt.figure(figsize=(10, 8))
+    for result in results:
+        plt.plot(
+            result["fpr"],
+            result["tpr"],
+            label=f"Model {result['model']} (AUC={result['auc']:.4f})",
+        )
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Random Guess")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title(title_name)
+    plt.legend()
+    plt.grid()
+    plt.savefig(file_name, dpi=300)
+
+
+# Main process to train and evaluate models for each dataset
+datasets = {
+    "data1": (train_data_1, test_data_1),
+    "data2": (train_data_2, test_data_2),
+    "data3": (train_data_3, test_data_3),  # Add data3 for training and testing
+}
+
+model_results = {}
+
+# Train and evaluate models for each dataset
+for data_name, (train_data, test_data) in datasets.items():
+    print(f"----- Random Forest - {data_name} -----")
+    start_time = time.time()
+    X_train, y_train, X_test, y_test = split_data(train_data, test_data)
+
+    best_model, param_results = search_best_parameter(X_train, y_train, cv=3)
+    print_grid_search_results(param_results)
+    test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+
+    print_roc_curve(test_auc, fpr, tpr, f"random-forest-{data_name}")
+    model_results[data_name] = {
+        "model": best_model,
+        "fpr": fpr,
+        "tpr": tpr,
+        "auc": test_auc,
+    }
+
+    execution_time = time.time() - start_time
+    print(f"{data_name} execution time: {execution_time:.4f} seconds")
+
+# Evaluate each model on all datasets and plot combined ROC curves
+for data_name, (_, test_data) in datasets.items():
+    print(f"\n----- Evaluating All Models on {data_name} -----")
+    X_test, y_test = (
+        test_data.drop(columns=["hospital_death"]),
+        test_data["hospital_death"],
+    )
+    results = []
+
+    for train_data_name, result in model_results.items():
+        model = result["model"]
+        y_test_pred_proba = model.predict_proba(X_test)[:, 1]
+        test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
+        results.append(
+            {"model": train_data_name, "auc": test_auc, "fpr": fpr, "tpr": tpr}
+        )
+        print(
+            f"Model trained on {train_data_name}, tested on {data_name}: AUC = {test_auc:.4f}"
+        )
+
+    plot_combined_roc_curve(
+        results, f"Random-Forest {data_name} ROC Curve", f"combined-roc-{data_name}.jpg"
+    )
