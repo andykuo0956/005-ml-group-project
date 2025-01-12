@@ -2,12 +2,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import category_encoders as ce
-from imblearn.over_sampling import SMOTENC
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 import time
 
