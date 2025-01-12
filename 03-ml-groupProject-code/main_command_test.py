@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import category_encoders as ce
 from imblearn.over_sampling import SMOTENC
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_curve, auc, roc_auc_score
@@ -399,6 +398,49 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
         best_model.fit(X, y)
         return best_model, param_results
 
+    elif model_type == "logistic_regression":
+        C_range = [0.1, 1.0, 10]
+        solver_options = ["liblinear", "lbfgs"]
+        max_iter_options = [100, 200]
+
+        best_auc = 0
+        best_model = None
+        best_params = None
+
+        for C_val in C_range:
+            for solver in solver_options:
+                for max_iter_val in max_iter_options:
+                    model = LogisticRegression(
+                        C=C_val,
+                        solver=solver,
+                        max_iter=max_iter_val,
+                        random_state=42
+                    )
+                    auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+                    mean_auc = np.mean(auc_scores)
+
+                    param_results.append(
+                        {
+                            "C": C_val,
+                            "solver": solver,
+                            "max_iter": max_iter_val,
+                            "mean_auc": mean_auc,
+                        }
+                    )
+
+                    if mean_auc > best_auc:
+                        best_auc = mean_auc
+                        best_params = {
+                            "C": C_val,
+                            "solver": solver,
+                            "max_iter": max_iter_val
+                        }
+                        best_model = model
+
+        # Fit on entire training data
+        best_model.fit(X, y)
+        return best_model, param_results
+
 # Print grid search results as a table
 def print_grid_search_results(param_results):
     df = pd.DataFrame(param_results)
@@ -481,8 +523,8 @@ def parse_command_line_args():
         '--model',
         type=str,
         required=True,
-        choices=['random_forest', 'knn'],
-        help="The type of model to run: 'random_forest' or 'knn'."
+        choices=['random_forest', 'knn', 'logistic_regression'],
+        help="The type of model to run: 'random_forest', 'knn', or 'logistic_regression'."
     )
 
     return parser.parse_args()
@@ -500,5 +542,7 @@ if __name__ == "__main__":
         run_model(datasets, model_type="random_forest")
     elif args.model == 'knn':
         run_model(datasets, model_type="knn")
+    elif args.model == 'logistic_regression':
+        run_model(datasets, model_type="logistic_regression")
     else:
-        print("Invalid model type specified. Use 'random_forest' or 'knn'.")
+        print("Invalid model type specified. Use 'random_forest', 'knn', or 'logistic_regression'.")
