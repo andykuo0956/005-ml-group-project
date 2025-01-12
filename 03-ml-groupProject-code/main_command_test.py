@@ -17,7 +17,7 @@ total_execution_time = 0
 start_time = time.time()
 # 1.1 Loading the Dataset
 # 1.1.1 Reloading the dataset
-master_data = pd.read_csv("/Users/zhuanzhuan/Desktop/005-ml-group-project-main/00-dataset/00-raw-dataset/dataset.csv")
+master_data = pd.read_csv("00-raw-dataset/dataset.csv")
 
 
 # 1.1.2 Removing duplicate rows and dropping completely empty columns
@@ -440,7 +440,7 @@ def run_random_forest(datasets):
         print_grid_search_results(param_results)
         test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
 
-        file_name = f"random_forest-{data_name}-roc-curve.jpg"
+        file_name = f"02-image-output/random_forest-{data_name}-roc-curve.jpg"
         print_roc_curve(test_auc, fpr, tpr, file_name)
 
         model_results[data_name] = {
