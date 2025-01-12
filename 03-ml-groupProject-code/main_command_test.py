@@ -273,7 +273,6 @@ print(
     "---------------------------------------------------model---------------------------------------------------"
 )
 
-
 # Function to split data into features and target
 def split_data(train_data, test_data):
     X_train, y_train = train_data.drop(columns=["hospital_death"]), train_data["hospital_death"]
@@ -351,7 +350,7 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
         return best_model, param_results
 
     elif model_type == "knn":
-        n_neighbors_range = [1, 100,200, 1000]
+        n_neighbors_range = [1, 100, 200, 1000]
         weights_options = ["uniform", "distance"]
         metric_options = ["minkowski", "manhattan"]
 
@@ -414,67 +413,67 @@ def testing_data(best_model, X_test, y_test):
     print(f"Test AUC: {test_auc:.4f}")
     return test_auc, fpr, tpr
 
-# Plot and save the ROC curve
-def print_roc_curve(test_auc, fpr, tpr, file_name):
-    plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {test_auc:.4f})")
-    plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
+# Plot combined ROC curves for multiple models
+def plot_combined_roc_curve(results, title_name, file_name):
+    plt.figure(figsize=(10, 8))
+    for result in results:
+        plt.plot(
+            result["fpr"],
+            result["tpr"],
+            label=f"Model {result['model']} (AUC={result['auc']:.4f})",
+        )
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Random Guess")
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve")
+    plt.title(title_name)
     plt.legend()
     plt.grid()
     plt.savefig(file_name, dpi=300)
 
 # Main process to train and evaluate models for each dataset
-def run_random_forest(datasets):
-    print("Running Random Forest...")
+def run_model(datasets, model_type="random_forest"):
+    print(f"Running {model_type.title()}...")
     model_results = {}
+    combined_results = []
+
     for data_name, (train_data, test_data) in datasets.items():
-        print(f"----- Random Forest - {data_name} -----")
+        print(f"----- {model_type.title()} - {data_name} -----")
         X_train, y_train, X_test, y_test = split_data(train_data, test_data)
 
         best_model, param_results = search_best_parameter(
-            X_train, y_train, model_type="random_forest", cv=3
+            X_train, y_train, model_type=model_type, cv=5
         )
         print_grid_search_results(param_results)
+
         test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+        model_results[data_name] = {"model": best_model, "auc": test_auc, "fpr": fpr, "tpr": tpr}
 
-        file_name = f"02-image-output/random_forest-{data_name}-roc-curve.jpg"
-        print_roc_curve(test_auc, fpr, tpr, file_name)
-
-        model_results[data_name] = {
-            "model": best_model,
-            "fpr": fpr,
-            "tpr": tpr,
-            "auc": test_auc,
-        }
-    return model_results
-
-def run_knn(datasets):
-    print("Running KNN...")
-    model_results = {}
-    for data_name, (train_data, test_data) in datasets.items():
-        print(f"----- KNN - {data_name} -----")
-        X_train, y_train, X_test, y_test = split_data(train_data, test_data)
-
-        best_model, param_results = search_best_parameter(
-            X_train, y_train, model_type="knn", cv=5
+    for data_name, (_, test_data) in datasets.items():
+        print(f"\n----- Evaluating All Models on {data_name} -----")
+        X_test, y_test = (
+            test_data.drop(columns=["hospital_death"]),
+            test_data["hospital_death"],
         )
-        print_grid_search_results(param_results)
-        test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+        results = []
 
-        file_name = f"knn-{data_name}-roc-curve.jpg"
-        print_roc_curve(test_auc, fpr, tpr, file_name)
+        for train_data_name, result in model_results.items():
+            model = result["model"]
+            y_test_pred_proba = model.predict_proba(X_test)[:, 1]
+            test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
+            results.append(
+                {"model": train_data_name, "auc": test_auc, "fpr": fpr, "tpr": tpr}
+            )
+            print(
+                f"Model trained on {train_data_name}, tested on {data_name}: AUC = {test_auc:.4f}"
+            )
 
-        model_results[data_name] = {
-            "model": best_model,
-            "fpr": fpr,
-            "tpr": tpr,
-            "auc": test_auc,
-        }
+        plot_combined_roc_curve(
+            results, f"{model_type.title()} {data_name} ROC Curve", f"02-image-output/{model_type}-combined-roc-{data_name}.jpg"
+        )
+
     return model_results
 
+# Parse command-line arguments
 def parse_command_line_args():
     parser = argparse.ArgumentParser(description="Run experiments for machine learning models.")
 
@@ -498,8 +497,8 @@ if __name__ == "__main__":
     args = parse_command_line_args()
 
     if args.model == 'random_forest':
-        run_random_forest(datasets)
+        run_model(datasets, model_type="random_forest")
     elif args.model == 'knn':
-        run_knn(datasets)
+        run_model(datasets, model_type="knn")
     else:
         print("Invalid model type specified. Use 'random_forest' or 'knn'.")
