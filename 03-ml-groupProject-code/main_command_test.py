@@ -349,7 +349,7 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
         return best_model, param_results
 
     elif model_type == "knn":
-        n_neighbors_range = [1, 100, 200, 1000]
+        n_neighbors_range = [1, 3, 5, 10]
         weights_options = ["uniform", "distance"]
         metric_options = ["minkowski", "manhattan"]
 
