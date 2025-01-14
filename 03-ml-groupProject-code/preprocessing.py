@@ -22,21 +22,20 @@ def fill_missing_values(df):
 
     return df
     
-# Drops non-relevant features from the DataFrame.
+# Drop non-relevant features from the DataFrame.
 def drop_non_relevant_features(df, cols_to_drop):
     return df.drop(columns=cols_to_drop, errors="ignore")
 
-# Creates multiple stratified sub-samples (in this example, 3).
+# Create multiple stratified sub-sampled sets
 def create_stratified_subsamples(df, target_col, frac_divisor=6, random_seed=42):
     from math import floor
-    # We'll create 3 sub-sampled sets
     sampled_datasets = {
         "sampled_data_1": pd.DataFrame(),
         "sampled_data_2": pd.DataFrame(),
         "sampled_data_3": pd.DataFrame()
     }
 
-    # Count how many we want in total
+    # Count how many data points we want in total in each subsampled set
     total_to_sample = floor(len(df) / frac_divisor)
     class_dist = df[target_col].value_counts(normalize=True)
     grouped = df.groupby(target_col)
@@ -49,7 +48,7 @@ def create_stratified_subsamples(df, target_col, frac_divisor=6, random_seed=42)
                 sub_df, 
                 group.sample(n=num_samples_for_class, random_state=random_seed)
             ])
-        # Shuffle
+        # Shuffle to reduce data order bias
         sampled_datasets[name] = sub_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
     return sampled_datasets
@@ -78,7 +77,7 @@ def apply_smote_nc(sampled_data_dict, target_col, desired_ratios, random_seed=42
             if any(c.startswith(orig_col) for orig_col in cat_cols)
         ]
 
-        # Calculate how many minority samples we need
+        # Calculate how many minority samples we need to create class imbalances
         minority_count = y.value_counts().get(1, 0)
         majority_count = y.value_counts().get(0, 0)
         target_minority = int(majority_count * (ratio / (1 - ratio)))
@@ -97,6 +96,7 @@ def apply_smote_nc(sampled_data_dict, target_col, desired_ratios, random_seed=42
             pd.DataFrame(y_resampled, columns=[target_col])
         ], axis=1)
 
+        # Shuffle to reduce data order bias
         derived_data = derived_data.sample(frac=1, random_state=random_seed).reset_index(drop=True)
         derived_datasets[f"derived_data_{i}"] = derived_data
 
@@ -113,7 +113,7 @@ def stratified_split(df, target_col, train_ratio=0.7, random_seed=42):
         train_df = pd.concat([train_df, group.iloc[:cutoff]])
         test_df = pd.concat([test_df, group.iloc[cutoff:]])
 
-    # Shuffle final train/test
+    # Shuffle final train/test to reduce data order bias
     train_df = train_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
     test_df = test_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
     return train_df, test_df
@@ -160,7 +160,7 @@ if __name__ == "__main__":
         train_sets[f"train_data_{i}"] = train_data
         test_sets[f"test_data_{i}"] = test_data
 
-    # Optionally rename them for clarity
+    # Rename them for clarity
     train_data_1, test_data_1 = train_sets["train_data_1"], test_sets["test_data_1"]
     train_data_2, test_data_2 = train_sets["train_data_2"], test_sets["test_data_2"]
     train_data_3, test_data_3 = train_sets["train_data_3"], test_sets["test_data_3"]
