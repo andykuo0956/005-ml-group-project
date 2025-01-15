@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 import category_encoders as ce
 from imblearn.over_sampling import SMOTENC
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 import time
+import argparse
 
 # 1 data processing
 total_execution_time = 0
@@ -268,383 +268,20 @@ train_data_3, test_data_3 = train_sets["train_data_3"], test_sets["test_data_3"]
 
 end_time = time.time()
 
-# caiculate  data processing execution time
-execution_time = end_time - start_time
-total_execution_time += execution_time
-print(f"data processing execution time: {execution_time:.4f} second")
-print(f"total execution time: {total_execution_time:.4f} second")
-
-# ------------------------------------------------- 2 model -------------------------------------------------
 print(
-    "------------------------------------------------- 2 model -------------------------------------------------"
+    "---------------------------------------------------model---------------------------------------------------"
 )
-start_time = time.time()
-
-# LR
-# Feature and Target Separation (for dataset_1 and dataset_2)
-target_column = "hospital_death"
-
-
-def prepare_data(dataset):
-    X = dataset.drop(columns=[target_column])
-    y = dataset[target_column]
-    return X, y
-
-
-X_train_1, y_train_1 = prepare_data(train_data_1)
-X_train_2, y_train_2 = prepare_data(train_data_2)
-X_test_1, y_test_1 = prepare_data(test_data_1)
-X_test_2, y_test_2 = prepare_data(test_data_2)
-
-# Standardize Numerical Features
-scaler = StandardScaler()
-X_train_1_scaled = scaler.fit_transform(X_train_1)
-X_train_2_scaled = scaler.fit_transform(X_train_2)
-X_test_1_scaled = scaler.transform(X_test_1)
-X_test_2_scaled = scaler.transform(X_test_2)
-
-# Logistic Regression Model
-logreg = LogisticRegression(solver="liblinear", random_state=42)
-
-# Hyperparameter grid for Grid Search
-param_grid = {
-    "C": [0.1, 1, 10],  # Regularization strength
-    "solver": ["liblinear", "lbfgs"],  # Solver types
-    "max_iter": [100, 200],  # Maximum number of iterations for convergence
-}
-
-# Initialize variables to track best model and AUC score
-best_auc = 0
-best_params = None
-
-
-# Function to perform 5-fold cross-validation manually
-def manual_cross_validation(X, y, model, n_splits=5):
-    auc_scores = []
-    fold_size = len(X) // n_splits
-    for i in range(n_splits):
-        start, end = i * fold_size, (i + 1) * fold_size
-        X_train_fold = np.concatenate([X[:start], X[end:]], axis=0)
-        y_train_fold = np.concatenate([y[:start], y[end:]], axis=0)
-        X_val_fold, y_val_fold = X[start:end], y[start:end]
-
-        model.fit(X_train_fold, y_train_fold)
-        y_pred_proba = model.predict_proba(X_val_fold)[:, 1]
-        auc_score = roc_auc_score(y_val_fold, y_pred_proba)
-        auc_scores.append(auc_score)
-
-    return np.mean(auc_scores)
-
-
-# Grid Search (Manually for each dataset)
-for C in param_grid["C"]:
-    for solver in param_grid["solver"]:
-        for max_iter in param_grid["max_iter"]:
-            # Initialize model with specific hyperparameters
-            logreg = LogisticRegression(
-                C=C, solver=solver, max_iter=max_iter, random_state=42
-            )
-
-            # Evaluate on the imbalanced dataset (train_data_1)
-            auc_score_1 = manual_cross_validation(X_train_1_scaled, y_train_1, logreg)
-
-            # Evaluate on the balanced dataset (train_data_2)
-            auc_score_2 = manual_cross_validation(X_train_2_scaled, y_train_2, logreg)
-
-            # Print the AUC scores for both datasets
-            print(
-                f"AUC (Imbalanced - dataset_1): {auc_score_1:.4f} | AUC (Balanced - dataset_2): {auc_score_2:.4f}"
-            )
-
-            # Update best model if necessary based on the AUC score on the balanced dataset
-            if auc_score_2 > best_auc:
-                best_auc = auc_score_2
-                best_params = {"C": C, "solver": solver, "max_iter": max_iter}
-
-# Print the best hyperparameters and AUC score
-print(f"\nBest Hyperparameters: {best_params}")
-print(f"Best AUC-ROC Score (Balanced Dataset): {best_auc:.4f}")
-
-# Train the best model on the entire training data (using the balanced dataset)
-best_logreg = LogisticRegression(
-    C=best_params["C"],
-    solver=best_params["solver"],
-    max_iter=best_params["max_iter"],
-    random_state=42,
-)
-best_logreg.fit(X_train_2_scaled, y_train_2)
-
-# Evaluate on the imbalanced test dataset (test_data_1)
-y_pred_proba_1 = best_logreg.predict_proba(X_test_1_scaled)[:, 1]
-auc_score_1_final = roc_auc_score(y_test_1, y_pred_proba_1)
-print(f"Final AUC-ROC Score (Test Set - Imbalanced): {auc_score_1_final:.4f}")
-
-# Evaluate on the balanced test dataset (test_data_2)
-y_pred_proba_2 = best_logreg.predict_proba(X_test_2_scaled)[:, 1]
-auc_score_2_final = roc_auc_score(y_test_2, y_pred_proba_2)
-print(f"Final AUC-ROC Score (Test Set - Balanced): {auc_score_2_final:.4f}")
-
-# Plot the AUC-ROC curve for the imbalanced dataset (test_data_1)
-fpr_1, tpr_1, thresholds_1 = roc_curve(y_test_1, y_pred_proba_1)
-plt.figure(figsize=(8, 6))
-plt.plot(fpr_1, tpr_1, color="blue", label="Logistic Regression (Imbalanced)")
-plt.plot(
-    [0, 1], [0, 1], color="gray", linestyle="--"
-)  # Random classifier (diagonal line)
-plt.title("AUC-ROC Curve (Imbalanced Dataset)")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.legend(loc="lower right")
-plt.savefig("LR data 1", format="jpg", dpi=300)
-# plt.show()
-
-# Plot the AUC-ROC curve for the balanced dataset (test_data_2)
-fpr_2, tpr_2, thresholds_2 = roc_curve(y_test_2, y_pred_proba_2)
-plt.figure(figsize=(8, 6))
-plt.plot(fpr_2, tpr_2, color="green", label="Logistic Regression (Balanced)")
-plt.plot(
-    [0, 1], [0, 1], color="gray", linestyle="--"
-)  # Random classifier (diagonal line)
-plt.title("AUC-ROC Curve (Balanced Dataset)")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.legend(loc="lower right")
-plt.savefig("LR data 2", format="jpg", dpi=300)
-# plt.show()
-execution_time = end_time - start_time
-total_execution_time += execution_time
-print(f"random forest data 2 execution time: {execution_time:.4f} second")
-print(f"total execution time: {total_execution_time:.4f} second")
-
-
-print("-----KNN-----")
-
-
-def split_data(train_data, test_data):
-    """
-    Split train and test data into features and target.
-    """
-    X_train, y_train = (
-        train_data.drop(columns=["hospital_death"]),
-        train_data["hospital_death"],
-    )
-    X_test, y_test = (
-        test_data.drop(columns=["hospital_death"]),
-        test_data["hospital_death"],
-    )
-    return X_train, y_train, X_test, y_test
-
-
-def calculate_auc(y_true, y_pred_proba):
-    """
-    Calculate AUC and return FPR, TPR, and AUC score.
-    """
-    fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
-    return auc(fpr, tpr), fpr, tpr
-
-
-def custom_cross_val_score(model, X, y, cv=10):
-    """
-    Perform manual cross-validation.
-    """
-    if isinstance(X, pd.DataFrame):
-        X = X.values
-    if isinstance(y, pd.Series):
-        y = y.values
-
-    indices = np.arange(len(y))
-    np.random.shuffle(indices)
-    X, y = X[indices], y[indices]
-
-    fold_size = len(y) // cv
-    scores = []
-
-    for i in range(cv):
-        start, end = i * fold_size, (i + 1) * fold_size
-        X_val, y_val = X[start:end], y[start:end]
-        X_train = np.concatenate([X[:start], X[end:]], axis=0)
-        y_train = np.concatenate([y[:start], y[end:]], axis=0)
-
-        model.fit(X_train, y_train)
-        y_val_pred_proba = model.predict_proba(X_val)[:, 1]
-        auc_score = roc_auc_score(y_val, y_val_pred_proba)
-        scores.append(auc_score)
-
-    return scores
-
-
-def search_best_parameter_with_results(X, y, cv=10):
-    """
-    Search for the best parameters using grid search and cross-validation.
-    """
-    n_neighbors_options = [3, 5, 10]
-    weights_options = ["uniform", "distance"]
-    metric_options = ["minkowski", "manhattan"]
-
-    results = []
-
-    print("Starting parameter search...")
-
-    for n_neighbors in n_neighbors_options:
-        for weights in weights_options:
-            for metric in metric_options:
-                try:
-                    # Define the kNN model
-                    model = KNeighborsClassifier(
-                        n_neighbors=n_neighbors, weights=weights, metric=metric
-                    )
-
-                    # Perform cross-validation
-                    auc_scores = custom_cross_val_score(model, X, y, cv=cv)
-                    mean_auc = np.mean(auc_scores)
-
-                    print(
-                        f"Parameters: n_neighbors={n_neighbors}, weights={weights}, metric={metric}"
-                    )
-                    print(f"Cross-Validation Mean AUC: {mean_auc:.6f}")
-
-                    # Append results
-                    results.append(
-                        {
-                            "n_neighbors": n_neighbors,
-                            "weights": weights,
-                            "metric": metric,
-                            "mean_auc": mean_auc,
-                        }
-                    )
-
-                except Exception as e:
-                    print(
-                        f"Error with n_neighbors={n_neighbors}, weights={weights}, metric={metric}: {e}"
-                    )
-                    results.append(
-                        {
-                            "n_neighbors": n_neighbors,
-                            "weights": weights,
-                            "metric": metric,
-                            "mean_auc": np.nan,  # Record NaN for invalid configurations
-                        }
-                    )
-
-    results_df = pd.DataFrame(results)
-    return results_df
-
-
-def plot_results(results_df):
-    """
-    Plot parameter search results for visualization.
-    """
-    for weights in results_df["weights"].unique():
-        for metric in results_df["metric"].unique():
-            subset = results_df[
-                (results_df["weights"] == weights) & (results_df["metric"] == metric)
-            ]
-            plt.plot(
-                subset["n_neighbors"],
-                subset["mean_auc"],
-                label=f"Weights={weights}, Metric={metric}",
-            )
-
-    plt.xlabel("Number of Neighbors (n_neighbors)")
-    plt.ylabel("Mean AUC")
-    plt.title("Parameter Search Results")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-
-def testing_data(best_model, X_test, y_test):
-    """
-    Test the best model on the test set and calculate AUC.
-    """
-    y_test_pred_proba = best_model.predict_proba(X_test)[:, 1]
-    test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
-    return test_auc, fpr, tpr
-
-
-def print_roc_curve(test_auc, fpr, tpr, dataset_name):
-    """
-    Plot the ROC curve.
-    """
-    plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {test_auc:.4f})")
-    plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(f"ROC Curve - {dataset_name}")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-
-if __name__ == "__main__":
-    print("Script execution started...")
-
-    datasets = [
-        {"train_data": train_data_1, "test_data": test_data_1, "name": "Dataset 1"},
-        {"train_data": train_data_2, "test_data": test_data_2, "name": "Dataset 2"},
-    ]
-
-    for dataset in datasets:
-        print(f"\nProcessing {dataset['name']}...")
-        try:
-            train_data = dataset["train_data"]
-            test_data = dataset["test_data"]
-
-            print("Data loaded successfully!")
-            print(f"Train data shape: {train_data.shape}")
-            print(f"Test data shape: {test_data.shape}")
-
-            X_train, y_train, X_test, y_test = split_data(train_data, test_data)
-
-            print("Training and testing...")
-
-            results_df = search_best_parameter_with_results(X_train, y_train)
-            best_params = results_df.loc[results_df["mean_auc"].idxmax()]
-            print(f"Best Parameters: {best_params}")
-
-            best_model = KNeighborsClassifier(
-                n_neighbors=int(best_params["n_neighbors"]),
-                weights=best_params["weights"],
-                metric=best_params["metric"],
-            )
-            best_model.fit(X_train, y_train)
-
-            test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
-            print(f"Test AUC for {dataset['name']}: {test_auc:.4f}")
-            print_roc_curve(test_auc, fpr, tpr, dataset["name"])
-
-            print(f"{dataset['name']} processing completed.")
-
-        except Exception as e:
-            print(f"An error occurred while processing {dataset['name']}: {e}")
-
-    print("Script execution completed.")
-
-
-
-# random forest
-print("-----random forest-----")
-
 
 # Function to split data into features and target
 def split_data(train_data, test_data):
-    X_train, y_train = (
-        train_data.drop(columns=["hospital_death"]),
-        train_data["hospital_death"],
-    )
-    X_test, y_test = (
-        test_data.drop(columns=["hospital_death"]),
-        test_data["hospital_death"],
-    )
+    X_train, y_train = train_data.drop(columns=["hospital_death"]), train_data["hospital_death"]
+    X_test, y_test = test_data.drop(columns=["hospital_death"]), test_data["hospital_death"]
     return X_train, y_train, X_test, y_test
-
 
 # Function to calculate AUC and ROC curve
 def calculate_auc(y_true, y_pred_proba):
     fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
     return auc(fpr, tpr), fpr, tpr
-
 
 # Custom cross-validation function to calculate AUC scores
 def custom_cross_val_score(model, X, y, cv=5, seed=42):
@@ -653,15 +290,11 @@ def custom_cross_val_score(model, X, y, cv=5, seed=42):
     if isinstance(y, pd.Series):
         y = y.values
 
-    # Set the random seed for reproducibility
     np.random.seed(seed)
-
-    # Shuffle the data
     indices = np.arange(len(y))
     np.random.shuffle(indices)
     X, y = X[indices], y[indices]
 
-    # Split data into folds
     fold_size = len(y) // cv
     scores = []
 
@@ -671,55 +304,142 @@ def custom_cross_val_score(model, X, y, cv=5, seed=42):
         X_train = np.concatenate([X[:start], X[end:]], axis=0)
         y_train = np.concatenate([y[:start], y[end:]], axis=0)
 
-        # Train model and predict probabilities
         model.fit(X_train, y_train)
         y_val_pred_proba = model.predict_proba(X_val)[:, 1]
 
-        # Calculate AUC
         auc_score = roc_auc_score(y_val, y_val_pred_proba)
         scores.append(auc_score)
 
     return scores
 
-
-# Grid search for the best parameters
-def search_best_parameter(X, y, cv=5):
-    n_estimators_range = [100, 150, 200]
-    max_depth_range = [10, 15, 20]
-
-    best_auc = 0
-    best_params = None
-    best_model = None
+# Grid search for the best parameters for Random Forest and KNN
+def search_best_parameter(X, y, model_type="random_forest", cv=5):
     param_results = []
 
-    for n_estimators in n_estimators_range:
-        for max_depth in max_depth_range:
-            model = RandomForestClassifier(
-                n_estimators=n_estimators, max_depth=max_depth, random_state=42
-            )
-            auc_scores = custom_cross_val_score(model, X, y, cv=cv)
-            mean_auc = np.mean(auc_scores)
+    if model_type == "random_forest":
+        n_estimators_range = [100, 150, 200]
+        max_depth_range = [10, 15, 20]
 
-            # Record the parameters and AUC
-            param_results.append(
-                {
-                    "n_estimators": n_estimators,
-                    "max_depth": max_depth,
-                    "mean_auc": mean_auc,
-                }
-            )
+        best_auc = 0
+        best_params = None
+        best_model = None
 
-            if mean_auc > best_auc:
-                best_auc = mean_auc
-                best_params = {"n_estimators": n_estimators, "max_depth": max_depth}
-                best_model = model
+        for n_estimators in n_estimators_range:
+            for max_depth in max_depth_range:
+                model = RandomForestClassifier(
+                    n_estimators=n_estimators, max_depth=max_depth, random_state=42
+                )
+                auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+                mean_auc = np.mean(auc_scores)
 
-    best_model.fit(X, y)
-    print(f"Best Parameters: {best_params}")
-    print(f"Best Cross-Validation AUC: {best_auc:.4f}")
+                param_results.append(
+                    {
+                        "n_estimators": n_estimators,
+                        "max_depth": max_depth,
+                        "mean_auc": mean_auc,
+                    }
+                )
 
-    return best_model, param_results
+                if mean_auc > best_auc:
+                    best_auc = mean_auc
+                    best_params = {"n_estimators": n_estimators, "max_depth": max_depth}
+                    best_model = model
 
+        best_model.fit(X, y)
+        return best_model, param_results
+
+    elif model_type == "knn":
+        n_neighbors_range = [1, 3, 5, 10]
+        weights_options = ["uniform", "distance"]
+        metric_options = ["minkowski", "manhattan"]
+
+        best_auc = 0
+        best_params = None
+        best_model = None
+
+        for n_neighbors in n_neighbors_range:
+            for weights in weights_options:
+                for metric in metric_options:
+                    try:
+                        model = KNeighborsClassifier(
+                            n_neighbors=n_neighbors, weights=weights, metric=metric, random_state=42
+                        )
+                        auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+                        mean_auc = np.mean(auc_scores)
+
+                        param_results.append(
+                            {
+                                "n_neighbors": n_neighbors,
+                                "weights": weights,
+                                "metric": metric,
+                                "mean_auc": mean_auc,
+                            }
+                        )
+
+                        if mean_auc > best_auc:
+                            best_auc = mean_auc
+                            best_params = {
+                                "n_neighbors": n_neighbors,
+                                "weights": weights,
+                                "metric": metric,
+                            }
+                            best_model = model
+
+                    except Exception as e:
+                        param_results.append(
+                            {
+                                "n_neighbors": n_neighbors,
+                                "weights": weights,
+                                "metric": metric,
+                                "mean_auc": np.nan,
+                            }
+                        )
+
+        best_model.fit(X, y)
+        return best_model, param_results
+
+    elif model_type == "logistic_regression":
+        C_range = [0.1, 1.0, 10]
+        solver_options = ["liblinear", "lbfgs"]
+        max_iter_options = [300, 500, 1000]
+
+        best_auc = 0
+        best_model = None
+        best_params = None
+
+        for C_val in C_range:
+            for solver in solver_options:
+                for max_iter_val in max_iter_options:
+                    model = LogisticRegression(
+                        C=C_val,
+                        solver=solver,
+                        max_iter=max_iter_val,
+                        random_state=42
+                    )
+                    auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+                    mean_auc = np.mean(auc_scores)
+
+                    param_results.append(
+                        {
+                            "C": C_val,
+                            "solver": solver,
+                            "max_iter": max_iter_val,
+                            "mean_auc": mean_auc,
+                        }
+                    )
+
+                    if mean_auc > best_auc:
+                        best_auc = mean_auc
+                        best_params = {
+                            "C": C_val,
+                            "solver": solver,
+                            "max_iter": max_iter_val
+                        }
+                        best_model = model
+
+        # Fit on entire training data
+        best_model.fit(X, y)
+        return best_model, param_results
 
 # Print grid search results as a table
 def print_grid_search_results(param_results):
@@ -728,27 +448,12 @@ def print_grid_search_results(param_results):
     print(df.sort_values(by="mean_auc", ascending=False).to_string(index=False))
     return df
 
-
 # Test the model on the test dataset
 def testing_data(best_model, X_test, y_test):
     y_test_pred_proba = best_model.predict_proba(X_test)[:, 1]
     test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
     print(f"Test AUC: {test_auc:.4f}")
     return test_auc, fpr, tpr
-
-
-# Plot and save the ROC curve
-def print_roc_curve(test_auc, fpr, tpr, file_name):
-    plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {test_auc:.4f})")
-    plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve")
-    plt.legend()
-    plt.grid()
-    plt.savefig(file_name, dpi=300)
-
 
 # Plot combined ROC curves for multiple models
 def plot_combined_roc_curve(results, title_name, file_name):
@@ -767,57 +472,78 @@ def plot_combined_roc_curve(results, title_name, file_name):
     plt.grid()
     plt.savefig(file_name, dpi=300)
 
-
 # Main process to train and evaluate models for each dataset
-datasets = {
-    "data1": (train_data_1, test_data_1),
-    "data2": (train_data_2, test_data_2),
-    "data3": (train_data_3, test_data_3),  # Add data3 for training and testing
-}
+def run_model(datasets, model_type="random_forest"):
+    print(f"Running {model_type.title()}...")
+    model_results = {}
+    combined_results = []
 
-model_results = {}
+    for data_name, (train_data, test_data) in datasets.items():
+        print(f"----- {model_type.title()} - {data_name} -----")
+        X_train, y_train, X_test, y_test = split_data(train_data, test_data)
 
-# Train and evaluate models for each dataset
-for data_name, (train_data, test_data) in datasets.items():
-    print(f"----- Random Forest - {data_name} -----")
-    start_time = time.time()
-    X_train, y_train, X_test, y_test = split_data(train_data, test_data)
+        best_model, param_results = search_best_parameter(
+            X_train, y_train, model_type=model_type, cv=5
+        )
+        print_grid_search_results(param_results)
 
-    best_model, param_results = search_best_parameter(X_train, y_train, cv=3)
-    print_grid_search_results(param_results)
-    test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+        test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+        model_results[data_name] = {"model": best_model, "auc": test_auc, "fpr": fpr, "tpr": tpr}
 
-    print_roc_curve(test_auc, fpr, tpr, f"02-image-output/random-forest-{data_name}.jpg")
-    model_results[data_name] = {
-        "model": best_model,
-        "fpr": fpr,
-        "tpr": tpr,
-        "auc": test_auc,
+    for data_name, (_, test_data) in datasets.items():
+        print(f"\n----- Evaluating All Models on {data_name} -----")
+        X_test, y_test = (
+            test_data.drop(columns=["hospital_death"]),
+            test_data["hospital_death"],
+        )
+        results = []
+
+        for train_data_name, result in model_results.items():
+            model = result["model"]
+            y_test_pred_proba = model.predict_proba(X_test)[:, 1]
+            test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
+            results.append(
+                {"model": train_data_name, "auc": test_auc, "fpr": fpr, "tpr": tpr}
+            )
+            print(
+                f"Model trained on {train_data_name}, tested on {data_name}: AUC = {test_auc:.4f}"
+            )
+
+        plot_combined_roc_curve(
+            results, f"{model_type.title()} {data_name} ROC Curve", f"02-image-output/{model_type}-combined-roc-{data_name}.jpg"
+        )
+
+    return model_results
+
+# Parse command-line arguments
+def parse_command_line_args():
+    parser = argparse.ArgumentParser(description="Run experiments for machine learning models.")
+
+    parser.add_argument(
+        '--model',
+        type=str,
+        required=True,
+        choices=['random_forest', 'knn', 'logistic_regression'],
+        help="The type of model to run: 'random_forest', 'knn', or 'logistic_regression'."
+    )
+
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    datasets = {
+        "data1": (train_data_1, test_data_1),
+        "data2": (train_data_2, test_data_2),
+        "data3": (train_data_3, test_data_3),
     }
 
-    execution_time = time.time() - start_time
-    print(f"{data_name} execution time: {execution_time:.4f} seconds")
+    args = parse_command_line_args()
 
-# Evaluate each model on all datasets and plot combined ROC curves
-for data_name, (_, test_data) in datasets.items():
-    print(f"\n----- Evaluating All Models on {data_name} -----")
-    X_test, y_test = (
-        test_data.drop(columns=["hospital_death"]),
-        test_data["hospital_death"],
-    )
-    results = []
+    if args.model == 'random_forest':
+        run_model(datasets, model_type="random_forest")
+    elif args.model == 'knn':
+        run_model(datasets, model_type="knn")
+    elif args.model == 'logistic_regression':
+        run_model(datasets, model_type="logistic_regression")
+    else:
+        print("Invalid model type specified. Use 'random_forest', 'knn', or 'logistic_regression'.")
 
-    for train_data_name, result in model_results.items():
-        model = result["model"]
-        y_test_pred_proba = model.predict_proba(X_test)[:, 1]
-        test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
-        results.append(
-            {"model": train_data_name, "auc": test_auc, "fpr": fpr, "tpr": tpr}
-        )
-        print(
-            f"Model trained on {train_data_name}, tested on {data_name}: AUC = {test_auc:.4f}"
-        )
-
-    plot_combined_roc_curve(
-        results, f"Random-Forest {data_name} ROC Curve", f"02-image-output/random-forest-combined-roc-{data_name}.jpg"
-    )
