@@ -272,16 +272,25 @@ print(
     "---------------------------------------------------model---------------------------------------------------"
 )
 
+
 # Function to split data into features and target
 def split_data(train_data, test_data):
-    X_train, y_train = train_data.drop(columns=["hospital_death"]), train_data["hospital_death"]
-    X_test, y_test = test_data.drop(columns=["hospital_death"]), test_data["hospital_death"]
+    X_train, y_train = (
+        train_data.drop(columns=["hospital_death"]),
+        train_data["hospital_death"],
+    )
+    X_test, y_test = (
+        test_data.drop(columns=["hospital_death"]),
+        test_data["hospital_death"],
+    )
     return X_train, y_train, X_test, y_test
+
 
 # Function to calculate AUC and ROC curve
 def calculate_auc(y_true, y_pred_proba):
     fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
     return auc(fpr, tpr), fpr, tpr
+
 
 # Custom cross-validation function to calculate AUC scores
 def custom_cross_val_score(model, X, y, cv=5, seed=42):
@@ -311,6 +320,7 @@ def custom_cross_val_score(model, X, y, cv=5, seed=42):
         scores.append(auc_score)
 
     return scores
+
 
 # Grid search for the best parameters for Random Forest and KNN
 def search_best_parameter(X, y, model_type="random_forest", cv=5):
@@ -411,10 +421,7 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
             for solver in solver_options:
                 for max_iter_val in max_iter_options:
                     model = LogisticRegression(
-                        C=C_val,
-                        solver=solver,
-                        max_iter=max_iter_val,
-                        random_state=42
+                        C=C_val, solver=solver, max_iter=max_iter_val, random_state=42
                     )
                     auc_scores = custom_cross_val_score(model, X, y, cv=cv)
                     mean_auc = np.mean(auc_scores)
@@ -433,13 +440,14 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
                         best_params = {
                             "C": C_val,
                             "solver": solver,
-                            "max_iter": max_iter_val
+                            "max_iter": max_iter_val,
                         }
                         best_model = model
 
         # Fit on entire training data
         best_model.fit(X, y)
         return best_model, param_results
+
 
 # Print grid search results as a table
 def print_grid_search_results(param_results):
@@ -448,12 +456,14 @@ def print_grid_search_results(param_results):
     print(df.sort_values(by="mean_auc", ascending=False).to_string(index=False))
     return df
 
+
 # Test the model on the test dataset
 def testing_data(best_model, X_test, y_test):
     y_test_pred_proba = best_model.predict_proba(X_test)[:, 1]
     test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
     print(f"Test AUC: {test_auc:.4f}")
     return test_auc, fpr, tpr
+
 
 # Plot combined ROC curves for multiple models
 def plot_combined_roc_curve(results, title_name, file_name):
@@ -472,6 +482,7 @@ def plot_combined_roc_curve(results, title_name, file_name):
     plt.grid()
     plt.savefig(file_name, dpi=300)
 
+
 # Main process to train and evaluate models for each dataset
 def run_model(datasets, model_type="random_forest"):
     print(f"Running {model_type.title()}...")
@@ -488,7 +499,12 @@ def run_model(datasets, model_type="random_forest"):
         print_grid_search_results(param_results)
 
         test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
-        model_results[data_name] = {"model": best_model, "auc": test_auc, "fpr": fpr, "tpr": tpr}
+        model_results[data_name] = {
+            "model": best_model,
+            "auc": test_auc,
+            "fpr": fpr,
+            "tpr": tpr,
+        }
 
     for data_name, (_, test_data) in datasets.items():
         print(f"\n----- Evaluating All Models on {data_name} -----")
@@ -510,24 +526,30 @@ def run_model(datasets, model_type="random_forest"):
             )
 
         plot_combined_roc_curve(
-            results, f"{model_type.title()} {data_name} ROC Curve", f"02-image-output/{model_type}-combined-roc-{data_name}.jpg"
+            results,
+            f"{model_type.title()} {data_name} ROC Curve",
+            f"02-image-output/{model_type}-combined-roc-{data_name}.jpg",
         )
 
     return model_results
 
+
 # Parse command-line arguments
 def parse_command_line_args():
-    parser = argparse.ArgumentParser(description="Run experiments for machine learning models.")
+    parser = argparse.ArgumentParser(
+        description="Run experiments for machine learning models."
+    )
 
     parser.add_argument(
-        '--model',
+        "--model",
         type=str,
         required=True,
-        choices=['random_forest', 'knn', 'logistic_regression'],
-        help="The type of model to run: 'random_forest', 'knn', or 'logistic_regression'."
+        choices=["random_forest", "knn", "logistic_regression"],
+        help="The type of model to run: 'random_forest', 'knn', or 'logistic_regression'.",
     )
 
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     datasets = {
@@ -538,11 +560,13 @@ if __name__ == "__main__":
 
     args = parse_command_line_args()
 
-    if args.model == 'random_forest':
+    if args.model == "random_forest":
         run_model(datasets, model_type="random_forest")
-    elif args.model == 'knn':
+    elif args.model == "knn":
         run_model(datasets, model_type="knn")
-    elif args.model == 'logistic_regression':
+    elif args.model == "logistic_regression":
         run_model(datasets, model_type="logistic_regression")
     else:
-        print("Invalid model type specified. Use 'random_forest', 'knn', or 'logistic_regression'.")
+        print(
+            "Invalid model type specified. Use 'random_forest', 'knn', or 'logistic_regression'."
+        )
