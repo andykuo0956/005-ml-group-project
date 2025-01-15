@@ -11,6 +11,9 @@ from sklearn.metrics import roc_curve, auc, roc_auc_score
 import time
 import argparse
 
+
+
+
 def remove_duplicates_and_drop_empty(df):
     df = df.drop_duplicates()
     df = df.dropna(axis=1, how="all")
@@ -232,9 +235,9 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
         for n_estimators in n_estimators_range:
             for max_depth in max_depth_range:
                 model = RandomForestClassifier(
-                    n_estimators=n_estimators, max_depth=max_depth, random_state=42
+                    n_estimators=n_estimators, max_depth=max_depth
                 )
-                auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+                auc_scores = custom_cross_val_score(model, X, y, cv=cv,seed=42)
                 mean_auc = np.mean(auc_scores)
 
                 param_results.append(
@@ -249,7 +252,7 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
                     best_auc = mean_auc
                     best_params = {"n_estimators": n_estimators, "max_depth": max_depth}
                     best_model = model
-
+        np.random.seed(42)
         best_model.fit(X, y)
         return best_model, param_results
 
@@ -267,9 +270,9 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
                 for metric in metric_options:
                     try:
                         model = KNeighborsClassifier(
-                            n_neighbors=n_neighbors, weights=weights, metric=metric, random_state=42
+                            n_neighbors=n_neighbors, weights=weights, metric=metric
                         )
-                        auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+                        auc_scores = custom_cross_val_score(model, X, y, cv=cv, seed=42)
                         mean_auc = np.mean(auc_scores)
 
                         param_results.append(
@@ -300,6 +303,8 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
                             }
                         )
 
+        np.random.seed(42)
+
         best_model.fit(X, y)
         return best_model, param_results
 
@@ -319,9 +324,8 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
                         C=C_val,
                         solver=solver,
                         max_iter=max_iter_val,
-                        random_state=42
                     )
-                    auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+                    auc_scores = custom_cross_val_score(model, X, y, cv=cv,seed=42)
                     mean_auc = np.mean(auc_scores)
 
                     param_results.append(
@@ -341,7 +345,7 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
                             "max_iter": max_iter_val
                         }
                         best_model = model
-
+        np.random.seed(42)
         # Fit on entire training data
         best_model.fit(X, y)
         return best_model, param_results
@@ -378,7 +382,7 @@ def plot_combined_roc_curve(results, title_name, file_name):
     plt.savefig(file_name, dpi=300)
 
 # Main process to train and evaluate models for each dataset
-def run_model(datasets, model_type="random_forest"):
+def run_model(datasets, model_type="logistic_regression"):
     print(f"Running {model_type.title()}...")
     model_results = {}
     combined_results = []
@@ -428,8 +432,8 @@ def parse_command_line_args():
         '--model',
         type=str,
         required=True,
-        choices=['random_forest', 'knn', 'logistic_regression'],
-        help="The type of model to run: 'random_forest', 'knn', or 'logistic_regression'."
+        choices=['logistic_regression', 'knn', 'random_forest', 'all'],
+        help="The type of model to run: 'logistic_regression', 'knn', 'random_forest', or 'all'."
     )
 
     return parser.parse_args()
@@ -443,12 +447,16 @@ if __name__ == "__main__":
 
     args = parse_command_line_args()
 
-    if args.model == 'random_forest':
-        run_model(datasets, model_type="random_forest")
+    if args.model == 'logistic_regression':
+        run_model(datasets, model_type="logistic_regression")
     elif args.model == 'knn':
         run_model(datasets, model_type="knn")
-    elif args.model == 'logistic_regression':
+    elif args.model == 'random_forest':
+        run_model(datasets, model_type="random_forest")
+    elif args.model == 'all':
+        print("Running all models in order: Logistic Regression -> KNN -> Random Forest.")
         run_model(datasets, model_type="logistic_regression")
+        run_model(datasets, model_type="knn")
+        run_model(datasets, model_type="random_forest")
     else:
-        print("Invalid model type specified. Use 'random_forest', 'knn', or 'logistic_regression'.")
-
+        print("Invalid model type specified. Use 'logistic_regression', 'knn', 'random_forest', or 'all'.")
