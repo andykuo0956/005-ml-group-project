@@ -359,7 +359,7 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
         return best_model, param_results
 
     elif model_type == "knn":
-        n_neighbors_range = [1, 100, 200, 1000]
+        n_neighbors_range = [1, 3, 5, 10]
         weights_options = ["uniform", "distance"]
         metric_options = ["minkowski", "manhattan"]
 
@@ -411,7 +411,7 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
     elif model_type == "logistic_regression":
         C_range = [0.1, 1.0, 10]
         solver_options = ["liblinear", "lbfgs"]
-        max_iter_options = [100, 200]
+        max_iter_options = [300, 500, 1000]
 
         best_auc = 0
         best_model = None
