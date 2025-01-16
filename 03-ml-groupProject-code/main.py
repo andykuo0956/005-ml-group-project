@@ -11,9 +11,6 @@ from sklearn.metrics import roc_curve, auc, roc_auc_score
 import time
 import argparse
 
-
-
-
 def remove_duplicates_and_drop_empty(df):
     df = df.drop_duplicates()
     df = df.dropna(axis=1, how="all")
@@ -365,21 +362,28 @@ def testing_data(best_model, X_test, y_test):
     return test_auc, fpr, tpr
 
 # Plot combined ROC curves for multiple models
+import matplotlib.pyplot as plt
+
 def plot_combined_roc_curve(results, title_name, file_name):
     plt.figure(figsize=(10, 8))
+    
     for result in results:
         plt.plot(
             result["fpr"],
             result["tpr"],
             label=f"Model {result['model']} (AUC={result['auc']:.4f})",
         )
+    
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Random Guess")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(title_name)
-    plt.legend()
+    
+    plt.xlabel("False Positive Rate", fontsize=20)
+    plt.ylabel("True Positive Rate", fontsize=20)
+    plt.title(title_name, fontsize=24)
+    plt.legend(loc="lower right", fontsize=16)
     plt.grid()
-    plt.savefig(file_name, dpi=300)
+    plt.tight_layout(pad=0)
+    plt.savefig(file_name, dpi=300, bbox_inches="tight")
+
 
 # Main process to train and evaluate models for each dataset
 def run_model(datasets, model_type="logistic_regression"):
