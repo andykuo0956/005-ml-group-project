@@ -310,7 +310,7 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
 
     elif model_type == "logistic_regression":
         C_range = [0.1, 1.0, 10]
-        solver_options = ["liblinear", "lbfgs"]
+        solver_options = ["liblinear", "lbfgs", "saga"]
         max_iter_options = [300, 500, 1000]
 
         best_auc = 0
