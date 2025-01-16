@@ -152,7 +152,7 @@ if __name__ == "__main__":
     )
 
     # 5) Apply SMOTE-NC
-    desired_minority_class_ratios = [0.10, 0.50, 0.30] 
+    desired_minority_class_ratios = [0.10, 0.30, 0.50] 
     derived_datasets = apply_smote_nc(
         sampled_datasets, 
         target_col=target_column, 
