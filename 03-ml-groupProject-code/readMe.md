@@ -88,7 +88,7 @@ The methodology followed these steps:
 
 ### Running the Project
 
-1. Navigate to the project directory.
+1. Extract files from zip folder, navigate to the project directory, and install required libraries.
 
 2. Run the main.py script with the desired model type:
    ```bash
