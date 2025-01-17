@@ -487,6 +487,7 @@ def parse_command_line_args():
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     datasets = {
         "data1": (train_data_1, test_data_1),
         "data2": (train_data_2, test_data_2),
@@ -512,3 +513,6 @@ if __name__ == "__main__":
         print(
             "Invalid model type specified. Use 'logistic_regression', 'knn', 'random_forest', or 'all'."
         )
+
+    end_time = time.time()
+    print(f"Preprocessing completed in {end_time - start_time:.2f} seconds.")
