@@ -194,6 +194,8 @@ print(
     "---------------------------------------------------model---------------------------------------------------"
 )
 
+# Start measuring time
+start_time = time.time()
 
 # Function to split data into features and target
 def split_data(train_data, test_data):
@@ -334,8 +336,8 @@ def search_best_parameter(X, y, model_type="random_forest", cv=5):
 
     elif model_type == "logistic_regression":
         C_range = [0.1, 1.0, 10]
-        solver_options = ["liblinear", "lbfgs", "saga"]
-        max_iter_options = [300, 500, 1000]
+        solver_options = ["liblinear", "saga"]
+        max_iter_options = [1000, 1500, 2000]
 
         best_auc = 0
         best_model = None
@@ -512,3 +514,10 @@ if __name__ == "__main__":
         print(
             "Invalid model type specified. Use 'logistic_regression', 'knn', 'random_forest', or 'all'."
         )
+
+# End measuring time
+end_time = time.time()
+
+# Calculate and print the total running time
+elapsed_time = end_time - start_time
+print(f"Total Running Time: {elapsed_time:.4f} seconds")
