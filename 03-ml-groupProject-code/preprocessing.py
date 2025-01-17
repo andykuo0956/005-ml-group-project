@@ -11,6 +11,7 @@ def remove_duplicates_and_drop_empty(df):
     df = df.dropna(axis=1, how="all")
     return df
 
+# See reference 10 in report for reasoning behind imoputing values this way.
 def fill_missing_values(df):
     numeric_columns = df.select_dtypes(include=["float64", "int64"]).columns
     categorical_columns = df.select_dtypes(include=["object"]).columns
@@ -26,7 +27,7 @@ def fill_missing_values(df):
 def drop_non_relevant_features(df, cols_to_drop):
     return df.drop(columns=cols_to_drop, errors="ignore")
 
-# Create multiple stratified sub-sampled sets
+# Create multiple stratified sub-sampled sets - based on code from reference 11 in the report.
 def create_stratified_subsamples(df, target_col, frac_divisor=6, random_seed=42):
     from math import floor
     sampled_datasets = {
@@ -71,6 +72,7 @@ def apply_smote_nc(sampled_data_dict, target_col, desired_ratios, random_seed=42
         y = encoded_df[target_col]
 
         # Figure out which columns are categorical (encoded)
+        # code derived from references 12 and 13 in the report.
         cat_indices = [
             X.columns.get_loc(c)
             for c in X.columns
@@ -83,6 +85,7 @@ def apply_smote_nc(sampled_data_dict, target_col, desired_ratios, random_seed=42
         target_minority = int(majority_count * (ratio / (1 - ratio)))
 
         # SMOTENC
+        # Code derived from references 14 and 15 in the report.
         smote_nc = SMOTENC(
             categorical_features=cat_indices,
             sampling_strategy={1: target_minority},
