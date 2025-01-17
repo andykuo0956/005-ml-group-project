@@ -91,7 +91,7 @@ def search_best_parameter(X, y, cv=5):
     param_results = []
 
     C_range = [0.1, 1.0, 10]
-   solver_options = ["liblinear", "saga"]
+    solver_options = ["liblinear", "saga"]
     max_iter_options = [1000, 1500, 2000]
 
     best_auc = 0
