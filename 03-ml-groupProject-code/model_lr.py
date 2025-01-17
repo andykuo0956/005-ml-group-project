@@ -105,6 +105,7 @@ def search_best_parameter(X, y, cv=5):
                     C=C_val,
                     solver=solver,
                     max_iter=max_iter_val,
+                    random_state=42,
                 )
                 auc_scores = custom_cross_val_score(model, X, y, cv=cv, seed=42)
                 mean_auc = np.mean(auc_scores)
