@@ -91,8 +91,8 @@ def search_best_parameter(X, y, cv=5):
     param_results = []
 
     C_range = [0.1, 1.0, 10]
-    solver_options = ["liblinear", "lbfgs", "saga"]
-    max_iter_options = [300, 500, 1000]
+   solver_options = ["liblinear", "saga"]
+    max_iter_options = [1000, 1500, 2000]
 
     best_auc = 0
     best_model = None
@@ -106,6 +106,7 @@ def search_best_parameter(X, y, cv=5):
                     solver=solver,
                     max_iter=max_iter_val,
                     random_state=42,
+                    tol=1e-3
                 )
                 auc_scores = custom_cross_val_score(model, X, y, cv=cv, seed=42)
                 mean_auc = np.mean(auc_scores)
