@@ -194,8 +194,6 @@ print(
     "---------------------------------------------------model---------------------------------------------------"
 )
 
-# Start measuring time
-start_time = time.time()
 
 # Function to split data into features and target
 def split_data(train_data, test_data):
@@ -514,10 +512,3 @@ if __name__ == "__main__":
         print(
             "Invalid model type specified. Use 'logistic_regression', 'knn', 'random_forest', or 'all'."
         )
-
-# End measuring time
-end_time = time.time()
-
-# Calculate and print the total running time
-elapsed_time = end_time - start_time
-print(f"Total Running Time: {elapsed_time:.4f} seconds")
