@@ -1,4 +1,4 @@
-# Effect of Training and Testing Machine Learning Models on Dataset Class Imbalances for Predicting Patient Mortality
+# Robustness of Machine Learning Classification Models to Imbalanced In-Hospital Mortality Data
 
 ## Project Overview
 
@@ -70,7 +70,8 @@ The methodology followed these steps:
 ├── model_lr.py # Logistic Regression model implementation<br>
 ├── model_rfc.py # Random Forest model implementation<br>
 ├── preprocessing.py # Data preprocessing script<br>
-└── readMe.md # Project documentation<br>
+├── readMe.md # Project documentation<br>
+└── requirements.txt # Required libraries<br>
 
 ## How to Run the Project
 
@@ -149,4 +150,4 @@ The degree of class imbalance influenced the performance of all models. Logistic
 
 ## Report
 
-For detailed analysis and results, refer to the project report located in
+For detailed analysis and results, refer to the project report.
