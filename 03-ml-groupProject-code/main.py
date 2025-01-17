@@ -244,7 +244,7 @@ def custom_cross_val_score(model, X, y, cv=5, seed=42):
     return scores
 
 
-# Grid search for the best parameters for Random Forest and KNN
+# Grid search for the best parameters for Random Forest, KNN and Logistic Regression
 def search_best_parameter(X, y, model_type="random_forest", cv=5):
     param_results = []
 

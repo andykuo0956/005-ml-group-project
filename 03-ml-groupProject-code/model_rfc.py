@@ -2,9 +2,14 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import category_encoders as ce
+from imblearn.over_sampling import SMOTENC
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 import time
+import argparse
 
 print(
     "---------------------------------------------------read csv---------------------------------------------------"
@@ -60,15 +65,11 @@ def custom_cross_val_score(model, X, y, cv=5, seed=42):
     if isinstance(y, pd.Series):
         y = y.values
 
-    # Set the random seed for reproducibility
     np.random.seed(seed)
-
-    # Shuffle the data
     indices = np.arange(len(y))
     np.random.shuffle(indices)
     X, y = X[indices], y[indices]
 
-    # Split data into folds
     fold_size = len(y) // cv
     scores = []
 
@@ -78,11 +79,9 @@ def custom_cross_val_score(model, X, y, cv=5, seed=42):
         X_train = np.concatenate([X[:start], X[end:]], axis=0)
         y_train = np.concatenate([y[:start], y[end:]], axis=0)
 
-        # Train model and predict probabilities
         model.fit(X_train, y_train)
         y_val_pred_proba = model.predict_proba(X_val)[:, 1]
 
-        # Calculate AUC
         auc_score = roc_auc_score(y_val, y_val_pred_proba)
         scores.append(auc_score)
 
@@ -91,23 +90,23 @@ def custom_cross_val_score(model, X, y, cv=5, seed=42):
 
 # Grid search for the best parameters
 def search_best_parameter(X, y, cv=5):
+    param_results = []
+
     n_estimators_range = [100, 150, 200]
     max_depth_range = [10, 15, 20]
 
     best_auc = 0
     best_params = None
     best_model = None
-    param_results = []
 
     for n_estimators in n_estimators_range:
         for max_depth in max_depth_range:
             model = RandomForestClassifier(
-                n_estimators=n_estimators, max_depth=max_depth, random_state=42
+                n_estimators=n_estimators, max_depth=max_depth
             )
-            auc_scores = custom_cross_val_score(model, X, y, cv=cv)
+            auc_scores = custom_cross_val_score(model, X, y, cv=cv, seed=42)
             mean_auc = np.mean(auc_scores)
 
-            # Record the parameters and AUC
             param_results.append(
                 {
                     "n_estimators": n_estimators,
@@ -120,11 +119,8 @@ def search_best_parameter(X, y, cv=5):
                 best_auc = mean_auc
                 best_params = {"n_estimators": n_estimators, "max_depth": max_depth}
                 best_model = model
-
+    np.random.seed(42)
     best_model.fit(X, y)
-    print(f"Best Parameters: {best_params}")
-    print(f"Best Cross-Validation AUC: {best_auc:.4f}")
-
     return best_model, param_results
 
 
@@ -144,87 +140,85 @@ def testing_data(best_model, X_test, y_test):
     return test_auc, fpr, tpr
 
 
-# Plot and save the ROC curve
-def print_roc_curve(test_auc, fpr, tpr, file_name):
-    plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {test_auc:.4f})")
-    plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve")
-    plt.legend()
-    plt.grid()
-    plt.savefig(file_name, dpi=300)
+# Plot combined ROC curves
+import matplotlib.pyplot as plt
 
 
-# Plot combined ROC curves for multiple models
 def plot_combined_roc_curve(results, title_name, file_name):
     plt.figure(figsize=(10, 8))
+
     for result in results:
         plt.plot(
             result["fpr"],
             result["tpr"],
-            label=f"Model {result['model']} (AUC={result['auc']:.4f})",
+            label=f"Model trained on {result['model']} (AUC={result['auc']:.4f})",
         )
+
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Random Guess")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(title_name)
-    plt.legend()
+
+    plt.xlabel("False Positive Rate", fontsize=20)
+    plt.ylabel("True Positive Rate", fontsize=20)
+    plt.title(title_name, fontsize=24)
+    plt.legend(loc="lower right", fontsize=16)
     plt.grid()
-    plt.savefig(file_name, dpi=300)
+    plt.tight_layout(pad=0)
+    plt.savefig(file_name, dpi=300, bbox_inches="tight")
 
 
 # Main process to train and evaluate models for each dataset
-datasets = {
-    "data1": (train_data_1, test_data_1),
-    "data2": (train_data_2, test_data_2),
-    "data3": (train_data_3, test_data_3),  # Add data3 for training and testing
-}
+def run_model(datasets, model_type="random_forest"):
+    print(f"Running {model_type.title()}...")
+    model_results = {}
+    combined_results = []
 
-model_results = {}
+    for data_name, (train_data, test_data) in datasets.items():
+        print(f"----- {model_type.title()} - {data_name} -----")
+        X_train, y_train, X_test, y_test = split_data(train_data, test_data)
 
-# Train and evaluate models for each dataset
-for data_name, (train_data, test_data) in datasets.items():
-    print(f"----- Random Forest - {data_name} -----")
-    start_time = time.time()
-    X_train, y_train, X_test, y_test = split_data(train_data, test_data)
+        best_model, param_results = search_best_parameter(X_train, y_train, cv=5)
+        print_grid_search_results(param_results)
 
-    best_model, param_results = search_best_parameter(X_train, y_train, cv=3)
-    print_grid_search_results(param_results)
-    test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+        test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+        model_results[data_name] = {
+            "model": best_model,
+            "auc": test_auc,
+            "fpr": fpr,
+            "tpr": tpr,
+        }
 
-    print_roc_curve(test_auc, fpr, tpr, f"02-image-output/random-forest-{data_name}.jpg")
-    model_results[data_name] = {
-        "model": best_model,
-        "fpr": fpr,
-        "tpr": tpr,
-        "auc": test_auc,
+    for data_name, (_, test_data) in datasets.items():
+        print(f"\n----- Evaluating All Models on {data_name} -----")
+        X_test, y_test = (
+            test_data.drop(columns=["hospital_death"]),
+            test_data["hospital_death"],
+        )
+        results = []
+
+        for train_data_name, result in model_results.items():
+            model = result["model"]
+            y_test_pred_proba = model.predict_proba(X_test)[:, 1]
+            test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
+            results.append(
+                {"model": train_data_name, "auc": test_auc, "fpr": fpr, "tpr": tpr}
+            )
+            print(
+                f"Model trained on {train_data_name}, tested on {data_name}: AUC = {test_auc:.4f}"
+            )
+
+        plot_combined_roc_curve(
+            results,
+            f"ROC Curves-{model_type.title()} tested on {data_name}",
+            f"02-image-output/{model_type}-combined-roc-{data_name}.jpg",
+        )
+
+    return model_results
+
+
+if __name__ == "__main__":
+    datasets = {
+        "data1": (train_data_1, test_data_1),
+        "data2": (train_data_2, test_data_2),
+        "data3": (train_data_3, test_data_3),
     }
 
-    execution_time = time.time() - start_time
-    print(f"{data_name} execution time: {execution_time:.4f} seconds")
-
-# Evaluate each model on all datasets and plot combined ROC curves
-for data_name, (_, test_data) in datasets.items():
-    print(f"\n----- Evaluating All Models on {data_name} -----")
-    X_test, y_test = (
-        test_data.drop(columns=["hospital_death"]),
-        test_data["hospital_death"],
-    )
-    results = []
-
-    for train_data_name, result in model_results.items():
-        model = result["model"]
-        y_test_pred_proba = model.predict_proba(X_test)[:, 1]
-        test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
-        results.append(
-            {"model": train_data_name, "auc": test_auc, "fpr": fpr, "tpr": tpr}
-        )
-        print(
-            f"Model trained on {train_data_name}, tested on {data_name}: AUC = {test_auc:.4f}"
-        )
-
-    plot_combined_roc_curve(
-        results, f"Random-Forest {data_name} ROC Curve", f"02-image-output/random-forest-combined-roc-{data_name}.jpg"
-    )
+    run_model(datasets, model_type="random_forest")

@@ -1,268 +1,232 @@
+# input library
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, roc_curve
+from sklearn.metrics import roc_curve, auc, roc_auc_score
 import time
 
 # Start measuring time
 start_time = time.time()
 
-# Load Datasets
-train_data_1 = pd.read_csv('/Users/aragoto/Desktop/FML/dataset/train_data_1.csv')  # 90:10
-test_data_1  = pd.read_csv('/Users/aragoto/Desktop/FML/dataset/test_data_1.csv')   # 90:10
+print(
+    "---------------------------------------------------read csv---------------------------------------------------"
+)
+# Define file paths
+train_file_1 = "01-dataset-preprocessed/data_1_train.csv"
+test_file_1 = "01-dataset-preprocessed/data_1_test.csv"
 
-train_data_2 = pd.read_csv('/Users/aragoto/Desktop/FML/dataset/train_data_2.csv')  # 70:30
-test_data_2  = pd.read_csv('/Users/aragoto/Desktop/FML/dataset/test_data_2.csv')   # 70:30
+train_file_2 = "01-dataset-preprocessed/data_2_train.csv"
+test_file_2 = "01-dataset-preprocessed/data_2_test.csv"
 
-train_data_3 = pd.read_csv('/Users/aragoto/Desktop/FML/dataset/train_data_3.csv')  # 50:50
-test_data_3  = pd.read_csv('/Users/aragoto/Desktop/FML/dataset/test_data_3.csv')   # 50:50
+train_file_3 = "01-dataset-preprocessed/data_3_train.csv"
+test_file_3 = "01-dataset-preprocessed/data_3_test.csv"
 
-target_column = 'hospital_death'
+# Read CSV files into DataFrames
+train_data_1 = pd.read_csv(train_file_1)
+test_data_1 = pd.read_csv(test_file_1)
 
+train_data_2 = pd.read_csv(train_file_2)
+test_data_2 = pd.read_csv(test_file_2)
 
-def prepare_data(df: pd.DataFrame, target_col: str):
-    """
-    Splits a DataFrame into (X, y).
-    """
-    X = df.drop(columns=[target_col])
-    y = df[target_col]
-    return X, y
+train_data_3 = pd.read_csv(train_file_3)
+test_data_3 = pd.read_csv(test_file_3)
 
-
-# Prepare (X,y) for each dataset
-X_train_1, y_train_1 = prepare_data(train_data_1, target_column)  # 90:10
-X_test_1,  y_test_1  = prepare_data(test_data_1,  target_column)
-
-X_train_2, y_train_2 = prepare_data(train_data_2, target_column)  # 70:30
-X_test_2,  y_test_2  = prepare_data(test_data_2,  target_column)
-
-X_train_3, y_train_3 = prepare_data(train_data_3, target_column)  # 50:50
-X_test_3,  y_test_3  = prepare_data(test_data_3,  target_column)
+print(
+    "---------------------------------------------------model---------------------------------------------------"
+)
 
 
-# Scaling & Manual CV
-def scale_dataframe(X_train: pd.DataFrame, X_val_or_test: pd.DataFrame):
-    """
-    Compute the training-set mean/std, then apply them to the other set.
-    """
-    means = X_train.mean(axis=0)
-    stds = X_train.std(axis=0)
-    stds = stds.replace(to_replace=0, value=1.0)
-
-    X_train_scaled = (X_train - means) / stds
-    X_val_or_test_scaled = (X_val_or_test - means) / stds
-    return X_train_scaled, X_val_or_test_scaled
-
-
-def manual_cross_validation(X: pd.DataFrame,
-                            y: pd.Series,
-                            model,
-                            n_splits=5) -> float:
-    """
-    Perform manual k-fold cross-validation (default = 5).
-    Returns mean AUC.
-    """
-    fold_size = len(X) // n_splits
-    auc_scores = []
-
-    for i in range(n_splits):
-        start = i * fold_size
-        end   = (i + 1) * fold_size
-
-        # Split out validation fold
-        X_val_fold = X.iloc[start:end, :]
-        y_val_fold = y.iloc[start:end]
-
-        # Training fold is everything else
-        X_train_fold = pd.concat([X.iloc[:start, :], X.iloc[end:, :]], axis=0)
-        y_train_fold = pd.concat([y.iloc[:start], y.iloc[end:]], axis=0)
-
-        model.fit(X_train_fold, y_train_fold)
-        y_val_proba = model.predict_proba(X_val_fold)[:, 1]
-        auc = roc_auc_score(y_val_fold, y_val_proba)
-        auc_scores.append(auc)
-
-    return np.mean(auc_scores)
+# Function to split data into features and target
+def split_data(train_data, test_data):
+    X_train, y_train = (
+        train_data.drop(columns=["hospital_death"]),
+        train_data["hospital_death"],
+    )
+    X_test, y_test = (
+        test_data.drop(columns=["hospital_death"]),
+        test_data["hospital_death"],
+    )
+    return X_train, y_train, X_test, y_test
 
 
-def find_best_hyperparams_via_CV(X_train: pd.DataFrame,
-                                 y_train: pd.Series,
-                                 param_grid: dict) -> dict:
-    """
-    Manual grid search + cross-validation to find best hyperparams for a single dataset.
-    Returns the best params as a dict.
-    """
-    best_auc = 0.0
+# Function to calculate AUC and ROC curve
+def calculate_auc(y_true, y_pred_proba):
+    fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
+    return auc(fpr, tpr), fpr, tpr
+
+
+# Custom cross-validation function to calculate AUC scores
+def custom_cross_val_score(model, X, y, cv=5, seed=42):
+    if isinstance(X, pd.DataFrame):
+        X = X.values
+    if isinstance(y, pd.Series):
+        y = y.values
+
+    np.random.seed(seed)
+    indices = np.arange(len(y))
+    np.random.shuffle(indices)
+    X, y = X[indices], y[indices]
+
+    fold_size = len(y) // cv
+    scores = []
+
+    for i in range(cv):
+        start, end = i * fold_size, (i + 1) * fold_size
+        X_val, y_val = X[start:end], y[start:end]
+        X_train = np.concatenate([X[:start], X[end:]], axis=0)
+        y_train = np.concatenate([y[:start], y[end:]], axis=0)
+
+        model.fit(X_train, y_train)
+        y_val_pred_proba = model.predict_proba(X_val)[:, 1]
+
+        auc_score = roc_auc_score(y_val, y_val_pred_proba)
+        scores.append(auc_score)
+
+    return scores
+
+
+# Grid search for the best parameters
+def search_best_parameter(X, y, cv=5):
+    param_results = []
+
+    C_range = [0.1, 1.0, 10]
+    solver_options = ["liblinear", "lbfgs", "saga"]
+    max_iter_options = [300, 500, 1000]
+
+    best_auc = 0
+    best_model = None
     best_params = None
 
-    print("Starting hyperparameter tuning...")
-    for C in param_grid['C']:
-        for solver in param_grid['solver']:
-            for max_iter in param_grid['max_iter']:
-                print(f"Evaluating parameters: C={C}, solver={solver}, max_iter={max_iter}")
-
-                # Build model with these hyperparams
+    for C_val in C_range:
+        for solver in solver_options:
+            for max_iter_val in max_iter_options:
                 model = LogisticRegression(
-                    C=C, solver=solver, max_iter=max_iter, random_state=42, tol=1e-3
+                    C=C_val,
+                    solver=solver,
+                    max_iter=max_iter_val,
+                )
+                auc_scores = custom_cross_val_score(model, X, y, cv=cv, seed=42)
+                mean_auc = np.mean(auc_scores)
+
+                param_results.append(
+                    {
+                        "C": C_val,
+                        "solver": solver,
+                        "max_iter": max_iter_val,
+                        "mean_auc": mean_auc,
+                    }
                 )
 
-                # 5-fold CV on the *scaled* dataset
-                cv_auc = manual_cross_validation(X_train, y_train, model)
-
-                if cv_auc > best_auc:
-                    best_auc = cv_auc
+                if mean_auc > best_auc:
+                    best_auc = mean_auc
                     best_params = {
-                        'C': C,
-                        'solver': solver,
-                        'max_iter': max_iter
+                        "C": C_val,
+                        "solver": solver,
+                        "max_iter": max_iter_val,
                     }
-                    print(f"New best AUC: {best_auc:.4f}")
-
-    return best_params
-
-
-# Define the hyperparameter grid
-param_grid = {
-    'C': [0.1, 1, 10],
-    'solver': ['liblinear', 'lbfgs', 'saga'],
-    'max_iter': [500, 1000, 3000]
-}
+                    best_model = model
+    np.random.seed(42)
+    # Fit on entire training data
+    best_model.fit(X, y)
+    return best_model, param_results
 
 
-# For each dataset_i (i=1..3), find best hyperparams, train final model
-def get_best_model_for_dataset(X_train_raw, y_train, param_grid):
-    """
-    1. Scale X_train_raw (since we do cross-validation on that training set).
-    2. Find best hyperparams (using the scaled X_train).
-    3. Train final LogisticRegression on the entire scaled training set with best hyperparams.
-    4. Return (best_model, best_params).
-    """
-    # Scale X_train_raw
-    X_train_scaled, _ = scale_dataframe(X_train_raw, X_train_raw)
-
-    # Find best hyperparams on scaled data
-    best_params = find_best_hyperparams_via_CV(X_train_scaled, y_train, param_grid)
-
-    # Train a final model using the entire training set (scaled) with the best params
-    best_model = LogisticRegression(
-        C=best_params['C'],
-        solver=best_params['solver'],
-        max_iter=best_params['max_iter'],
-        random_state=42
-    )
-    best_model.fit(X_train_scaled, y_train)
-
-    return best_model, best_params
+# Print grid search results as a table
+def print_grid_search_results(param_results):
+    df = pd.DataFrame(param_results)
+    print("\nGrid Search Results:")
+    print(df.sort_values(by="mean_auc", ascending=False).to_string(index=False))
+    return df
 
 
-# Get the "best" model on each distribution
-best_model_1, best_params_1 = get_best_model_for_dataset(X_train_1, y_train_1, param_grid)  # 90:10
-best_model_2, best_params_2 = get_best_model_for_dataset(X_train_2, y_train_2, param_grid)  # 70:30
-best_model_3, best_params_3 = get_best_model_for_dataset(X_train_3, y_train_3, param_grid)  # 50:50
+# Test the model on the test dataset
+def testing_data(best_model, X_test, y_test):
+    y_test_pred_proba = best_model.predict_proba(X_test)[:, 1]
+    test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
+    print(f"Test AUC: {test_auc:.4f}")
+    return test_auc, fpr, tpr
 
 
-# Evaluate All Trained Models on Each of the Three Test Distributions
-def scale_test_with_train_stats(X_train_raw, X_test_raw):
-    """
-    Scale X_test_raw using the mean/std from X_train_raw (the training distribution).
-    """
-    means = X_train_raw.mean(axis=0)
-    stds  = X_train_raw.std(axis=0)
-    stds  = stds.replace(to_replace=0, value=1.0)
+# Plot combined ROC curves
+def plot_combined_roc_curve(results, title_name, file_name):
+    plt.figure(figsize=(10, 8))
 
-    X_test_scaled = (X_test_raw - means) / stds
-    return X_test_scaled
+    for result in results:
+        plt.plot(
+            result["fpr"],
+            result["tpr"],
+            label=f"Model trained on {result['model']} (AUC={result['auc']:.4f})",
+        )
+
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Random Guess")
+
+    plt.xlabel("False Positive Rate", fontsize=20)
+    plt.ylabel("True Positive Rate", fontsize=20)
+    plt.title(title_name, fontsize=24)
+    plt.legend(loc="lower right", fontsize=16)
+    plt.grid()
+    plt.tight_layout(pad=0)
+    plt.savefig(file_name, dpi=300, bbox_inches="tight")
 
 
-def plot_roc_for_test_dataset(test_name,
-                              X_test_raw, y_test,
-                              trained_models_dict,
-                              train_data_dict,
-                              save_path):
-    """
-    test_name: e.g. "dataset1 (90:10)"
-    X_test_raw, y_test: the raw test set
-    trained_models_dict: e.g. {"dataset1": best_model_1, "dataset2": best_model_2, "dataset3": best_model_3}
-    train_data_dict:     e.g. {"dataset1": (X_train_1, y_train_1), ...} for scaling
-    """
-    plt.figure(figsize=(8, 6))
+# Main process to train and evaluate models for each dataset
+def run_model(datasets, model_type="logistic_regression"):
+    print(f"Running {model_type.title()}...")
+    model_results = {}
+    combined_results = []
 
-    colors = {
-        "dataset1": "blue",
-        "dataset2": "orange",
-        "dataset3": "green"
+    for data_name, (train_data, test_data) in datasets.items():
+        print(f"----- {model_type.title()} - {data_name} -----")
+        X_train, y_train, X_test, y_test = split_data(train_data, test_data)
+
+        best_model, param_results = search_best_parameter(X_train, y_train, cv=5)
+        print_grid_search_results(param_results)
+
+        test_auc, fpr, tpr = testing_data(best_model, X_test, y_test)
+        model_results[data_name] = {
+            "model": best_model,
+            "auc": test_auc,
+            "fpr": fpr,
+            "tpr": tpr,
+        }
+
+    for data_name, (_, test_data) in datasets.items():
+        print(f"\n----- Evaluating All Models on {data_name} -----")
+        X_test, y_test = (
+            test_data.drop(columns=["hospital_death"]),
+            test_data["hospital_death"],
+        )
+        results = []
+
+        for train_data_name, result in model_results.items():
+            model = result["model"]
+            y_test_pred_proba = model.predict_proba(X_test)[:, 1]
+            test_auc, fpr, tpr = calculate_auc(y_test, y_test_pred_proba)
+            results.append(
+                {"model": train_data_name, "auc": test_auc, "fpr": fpr, "tpr": tpr}
+            )
+            print(
+                f"Model trained on {train_data_name}, tested on {data_name}: AUC = {test_auc:.4f}"
+            )
+
+        plot_combined_roc_curve(
+            results,
+            f"ROC Curves-{model_type.title()} tested on {data_name}",
+            f"02-image-output/{model_type}-combined-roc-{data_name}.jpg",
+        )
+
+    return model_results
+
+
+if __name__ == "__main__":
+    datasets = {
+        "data1": (train_data_1, test_data_1),
+        "data2": (train_data_2, test_data_2),
+        "data3": (train_data_3, test_data_3),
     }
 
-    for train_label, model in trained_models_dict.items():
-        X_train_raw_for_scaling, _ = train_data_dict[train_label]
-
-        # Scale this test set using the stats from the training distribution
-        X_test_scaled = scale_test_with_train_stats(X_train_raw_for_scaling, X_test_raw)
-
-        # Predict probabilities
-        y_proba = model.predict_proba(X_test_scaled)[:, 1]
-        auc_val = roc_auc_score(y_test, y_proba)
-
-        fpr, tpr, _ = roc_curve(y_test, y_proba)
-        plt.plot(fpr,
-                 tpr,
-                 label=f"Trained on {train_label} (AUC={auc_val:.4f})",
-                 color=colors[train_label])
-
-    plt.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Random Guess')
-
-    plt.title(f"Logistic Regression ROC Curve - Test on {test_name}")
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.legend(loc='lower right')
-    plt.savefig(save_path, format="jpg", dpi=300)
-    plt.show()
-
-
-# Prepare dictionaries for plotting
-trained_models_dict = {
-    "dataset1": best_model_1,  # trained on 90:10
-    "dataset2": best_model_2,  # trained on 70:30
-    "dataset3": best_model_3,  # trained on 50:50
-}
-
-train_data_dict = {
-    "dataset1": (X_train_1, y_train_1),
-    "dataset2": (X_train_2, y_train_2),
-    "dataset3": (X_train_3, y_train_3),
-}
-
-
-# Plot for test dataset1 (90:10)
-plot_roc_for_test_dataset(
-    test_name="dataset1 (90:10)",
-    X_test_raw=X_test_1,
-    y_test=y_test_1,
-    trained_models_dict=trained_models_dict,
-    train_data_dict=train_data_dict,
-    save_path="dataset1_roc_curve.jpg"
-)
-
-# Plot for test dataset2 (70:30)
-plot_roc_for_test_dataset(
-    test_name="dataset2 (70:30)",
-    X_test_raw=X_test_2,
-    y_test=y_test_2,
-    trained_models_dict=trained_models_dict,
-    train_data_dict=train_data_dict,
-    save_path="dataset2_roc_curve.jpg"
-)
-
-# Plot for test dataset3 (50:50)
-plot_roc_for_test_dataset(
-    test_name="dataset3 (50:50)",
-    X_test_raw=X_test_3,
-    y_test=y_test_3,
-    trained_models_dict=trained_models_dict,
-    train_data_dict=train_data_dict,
-    save_path="dataset3_roc_curve.jpg"
-)
+    run_model(datasets, model_type="logistic_regression")
 
 # End measuring time
 end_time = time.time()
